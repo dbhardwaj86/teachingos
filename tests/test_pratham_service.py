@@ -79,3 +79,15 @@ def test_revoke_invalidates_existing_sessions(tmp_path, monkeypatch):
     token = service.login(res["code"], client_key="ip1")["_session_token"]
     service.revoke(res["id"])
     assert service.current_student(token) is None
+
+
+def test_current_student_rejects_revoked_student_even_with_live_session(tmp_path, monkeypatch):
+    # Defense-in-depth: simulate a crash AFTER set_status('revoked') but BEFORE
+    # delete_sessions_for_student — the session row still exists, yet current_student
+    # must reject it via the status=='active' re-check.
+    _fresh(tmp_path, monkeypatch)
+    res = service.enroll("Asha")
+    token = service.login(res["code"], client_key="ip1")["_session_token"]
+    store.set_status(res["id"], "revoked")   # status flipped, session row NOT deleted
+    assert store.find_session(identity.hash_secret(token)) is not None  # session still present
+    assert service.current_student(token) is None                       # but rejected by status check
