@@ -58,4 +58,15 @@ describe("Pratham sign-in (G3)", () => {
     fireEvent.click(screen.getByTestId("pratham-signin-submit"));
     expect(await screen.findByTestId("pratham-signin-error")).toBeTruthy();
   });
+
+  it("submits on Enter key", async () => {
+    (meRequest as ReturnType<typeof vi.fn>).mockResolvedValue(null);
+    (loginRequest as ReturnType<typeof vi.fn>).mockResolvedValue({ student: { id: "s1", name: "Asha" } });
+    render(<Pratham />);
+    fireEvent.click(await screen.findByTestId("pratham-signin"));
+    fireEvent.change(screen.getByTestId("pratham-signin-input"), { target: { value: "abc" } });
+    fireEvent.keyDown(screen.getByTestId("pratham-signin-input"), { key: "Enter" });
+    await waitFor(() => expect(screen.getByTestId("pratham-user").textContent).toContain("Asha"));
+    expect(loginRequest).toHaveBeenCalledWith("abc");
+  });
 });

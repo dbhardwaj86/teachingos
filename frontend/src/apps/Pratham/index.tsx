@@ -2,7 +2,7 @@
 // experience (mounted at /learn, NO operator OS-shell chrome) that reads ONLY the
 // public /api/published surface. The Saar (revision) sheet leads; each lane's
 // self-contained HTML renders in a sandboxed iframe (origin-isolated from the app).
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Student } from "../../types/contracts";
 import { loginRequest, logoutRequest, meRequest } from "../../lib/pratham/session";
 import { useApi } from "../../hooks/useApi";
@@ -30,14 +30,20 @@ export default function Pratham() {
   const [signinOpen, setSigninOpen] = useState(false);
   const [code, setCode] = useState("");
   const [authErr, setAuthErr] = useState<string | null>(null);
+  // A slow mount hydration must NOT clobber a login/logout that already resolved.
+  const meResolved = useRef(false);
 
   useEffect(() => {
     let alive = true;
-    meRequest().then((s) => { if (alive) setStudent(s); });
+    meRequest().then((s) => {
+      if (alive && !meResolved.current) setStudent(s);
+      meResolved.current = true;
+    });
     return () => { alive = false; };
   }, []);
 
   async function doLogin() {
+    meResolved.current = true;
     setAuthErr(null);
     try {
       const r = await loginRequest(code.trim());
@@ -50,6 +56,7 @@ export default function Pratham() {
   }
 
   async function doLogout() {
+    meResolved.current = true;
     try { await logoutRequest(); } finally { setStudent(null); }
   }
 
@@ -75,7 +82,7 @@ export default function Pratham() {
     }}>
       <header style={{
         padding: "14px 22px", borderBottom: `1px solid ${C.line}`,
-        display: "flex", alignItems: "baseline", gap: 10,
+        display: "flex", alignItems: "center", gap: 10,
       }}>
         <strong style={{ fontSize: 18, letterSpacing: 0.2 }}>PRATHAM</strong>
         <span style={{ color: C.muted, fontSize: 13 }}>Published revision corpus</span>
@@ -95,6 +102,7 @@ export default function Pratham() {
             <>
               <input data-testid="pratham-signin-input" value={code}
                 onChange={(e) => setCode(e.target.value)} placeholder="Enter your code"
+                onKeyDown={(e) => { if (e.key === "Enter") doLogin(); }}
                 aria-label="enrollment code"
                 style={{ font: "inherit", padding: "5px 8px", borderRadius: 8,
                   border: `1px solid ${C.line}` }} />
