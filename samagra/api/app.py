@@ -323,7 +323,8 @@ def api_learn_logout(request: Request):
     from ..pratham import service
     service.logout(request.cookies.get(_PRATHAM_COOKIE))
     resp = JSONResponse({"ok": True})
-    resp.delete_cookie(_PRATHAM_COOKIE, path="/")
+    resp.delete_cookie(_PRATHAM_COOKIE, path="/",
+                       secure=config.PRATHAM_COOKIE_SECURE, httponly=True, samesite="lax")
     return resp
 
 
