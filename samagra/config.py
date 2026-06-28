@@ -112,6 +112,17 @@ CONCEPT_ALIASES = REPO_ROOT / "concept_aliases.json"
 # GOVERNANCE_DB (durable != git-committed). The append-only audit ledger lives
 # in governance.db (`published`/`unpublished` events).
 PUBLISHED_DIR = REPO_ROOT / "published"
+# Phase G3: PRATHAM multi-tenant student identity. DURABLE (student accounts +
+# sessions) and gitignored like GOVERNANCE_DB (covered by the `*.db` rule) — never
+# reset. DELIBERATELY SEPARATE from governance.db so the PUBLIC student-login write
+# path is physically isolated from the inward governance ledger and the 7 subsystems.
+PRATHAM_DB = REPO_ROOT / "pratham.db"
+# The session cookie's Secure flag: True by default (prod is served over HTTPS
+# behind the cloudflared tunnel). Set SAMAGRA_PRATHAM_COOKIE_SECURE=0 only for
+# local plain-http dev (alongside SAMAGRA_DISABLE_ORIGIN_AUTH).
+PRATHAM_COOKIE_SECURE = _env_bool("SAMAGRA_PRATHAM_COOKIE_SECURE", True)
+# Student session lifetime (fixed expiry; re-login via the enrollment code).
+PRATHAM_SESSION_TTL_DAYS = int(os.environ.get("SAMAGRA_PRATHAM_SESSION_TTL_DAYS", "30"))
 
 # --- portal ---
 HOST = os.environ.get("SAMAGRA_HOST", "127.0.0.1")
