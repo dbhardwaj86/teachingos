@@ -40,6 +40,9 @@ from .. import config
 # --- protected route table ---------------------------------------------
 _PROTECTED_POSTS = frozenset({
     "/api/refresh", "/api/tick", "/api/munshi/capture", "/api/mcd/seeds",
+    # G3: the owner publish write path — the GUI/network sibling of the G1 CLI
+    # publish. Owner-gated (never-automated); delegates to the reviewed publish.run.
+    "/api/factory/publish", "/api/factory/unpublish",
 })
 # review 27 MED-3: /api/search and /api/assignments serve the CACHED equivalents of
 # the admin-keyed live reads (munshi payloads via the catalog; governance proposal

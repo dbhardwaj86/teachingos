@@ -246,6 +246,46 @@ def api_published_artifact(chapter: str, lane: str, kind: str = "html"):
     return Response(content=art["bytes"], media_type=art["media_type"], headers=headers)
 
 
+# -- G3 owner publish write path (owner-gated via origin_auth._PROTECTED_POSTS) --
+def _parse_publish_body(payload: dict):
+    """Validate {chapter, lanes?}. chapter required (non-empty str); lanes optional
+    (list[str]) — the network sibling of the G1 CLI's `--lanes`."""
+    chapter = (payload or {}).get("chapter")
+    if not isinstance(chapter, str) or not chapter.strip():
+        raise HTTPException(400, "chapter is required")
+    lanes = (payload or {}).get("lanes")
+    if lanes is not None and not (isinstance(lanes, list)
+                                  and all(isinstance(x, str) for x in lanes)):
+        raise HTTPException(400, "lanes must be a list of strings")
+    return chapter.strip(), lanes
+
+
+@app.post("/api/factory/publish")
+def api_factory_publish(payload: dict):
+    # The owner release gate over HTTP. NEVER-AUTOMATED: an explicit per-call
+    # {chapter, lanes?} from an authenticated owner (the gate above) — no schedule,
+    # no auto-approve. A thin delegate to the already-reviewed G1 publish.run; adds
+    # no new write mechanism (published/ frozen copies + append-only gov events only).
+    chapter, lanes = _parse_publish_body(payload)
+    from ..factory.publish import run as publish_run
+    try:
+        return {"ok": True, "result": publish_run.publish(chapter, lanes=lanes, actor="owner")}
+    except (ValueError, FileNotFoundError) as e:
+        # G1's clean refusals (unknown chapter / nothing captured / mcd lane /
+        # non-textbook seed / missing artifact) -> 409 conflict, never a 500.
+        raise HTTPException(409, str(e))
+
+
+@app.post("/api/factory/unpublish")
+def api_factory_unpublish(payload: dict):
+    chapter, lanes = _parse_publish_body(payload)
+    from ..factory.publish import run as publish_run
+    try:
+        return {"ok": True, "result": publish_run.unpublish(chapter, lanes=lanes, actor="owner")}
+    except (ValueError, FileNotFoundError) as e:
+        raise HTTPException(409, str(e))
+
+
 @app.post("/api/refresh")
 def api_refresh():
     totals = catalog.refresh(verbose=False)
