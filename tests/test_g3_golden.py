@@ -32,7 +32,8 @@ def test_golden_publish_over_http(tmp_path, monkeypatch):
     factory.build(rev["assignment_id"])
 
     c = TestClient(api_app.app)
-    # publish over HTTP (gate disabled in tests -> reaches handler on loopback)
+    # publish over HTTP (origin gate bypassed via DISABLE_ORIGIN_AUTH=True from conftest;
+    # TestClient's host is "testclient", not loopback)
     r = c.post("/api/factory/publish", json={"chapter": "circular-motion", "lanes": ["revision"]})
     assert r.status_code == 200
     assert "revision" in r.json()["result"]["published"]
@@ -49,7 +50,9 @@ def test_golden_enroll_login_me_revoke(tmp_path, monkeypatch):
     store._INITIALIZED.clear()
     res = service.enroll("Asha")
     c = TestClient(api_app.app)
-    assert c.post("/api/learn/login", json={"code": res["code"]}).json()["student"]["name"] == "Asha"
+    login = c.post("/api/learn/login", json={"code": res["code"]})
+    assert login.status_code == 200
+    assert login.json()["student"]["name"] == "Asha"
     assert c.get("/api/learn/me").json()["student"]["name"] == "Asha"
     # a wrong code is an identical 401
     assert c.post("/api/learn/login", json={"code": "wrong"}).status_code == 401
