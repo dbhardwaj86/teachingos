@@ -10,6 +10,7 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
+    credentials: "same-origin",
     body: JSON.stringify(body),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -26,7 +27,7 @@ export function logoutRequest(): Promise<{ ok: true }> {
 
 export async function meRequest(): Promise<Student | null> {
   try {
-    const res = await fetch("/api/learn/me", { headers: { accept: "application/json" } });
+    const res = await fetch("/api/learn/me", { headers: { accept: "application/json" }, credentials: "same-origin" });
     if (!res.ok) return null;
     const j = (await res.json()) as MeResponse;
     return j.student ?? null;

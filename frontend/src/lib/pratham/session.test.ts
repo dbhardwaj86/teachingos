@@ -41,5 +41,17 @@ describe("pratham session wrappers", () => {
     vi.stubGlobal("fetch", f);
     await logoutRequest();
     expect((f as unknown as ReturnType<typeof vi.fn>).mock.calls[0][0]).toBe("/api/learn/logout");
+    const opts = (f as unknown as ReturnType<typeof vi.fn>).mock.calls[0][1];
+    expect((opts as RequestInit).method).toBe("POST");
+  });
+
+  it("logoutRequest throws on a non-2xx", async () => {
+    vi.stubGlobal("fetch", mockFetch(false, {}));
+    await expect(logoutRequest()).rejects.toThrow();
+  });
+
+  it("meRequest returns null when fetch itself rejects (offline)", async () => {
+    vi.stubGlobal("fetch", vi.fn(() => Promise.reject(new TypeError("offline"))) as unknown as typeof fetch);
+    expect(await meRequest()).toBeNull();
   });
 });
