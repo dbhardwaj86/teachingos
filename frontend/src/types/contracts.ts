@@ -4,6 +4,9 @@ export type AppId =
   | "booklets" | "insp" | "sims" | "mycontentdev" | "munshi" | "activity"
   | "settings" | "terminal" | "clock" | "notes" | "snake" | "atlas";
 
+// G3: a PRATHAM student identity (the /api/learn/me + login shape).
+export interface Student { id: string; name: string; }
+
 export interface AppMeta { id: AppId; name: string; accent: string; w: number; h: number; }
 export interface Rect { x: number; y: number; w: number; h: number; }
 export interface WindowState {
