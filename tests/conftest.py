@@ -32,8 +32,13 @@ def isolate_data_db(monkeypatch, tmp_path):
     # schema-init by path; a fresh tmp path per test is already isolated, but clear
     # the memo + repoint to be safe.
     monkeypatch.setattr(config, "PRATHAM_DB", tmp_path / "pratham.db", raising=False)
+    # G3: disable the Secure flag in tests so the TestClient (HTTP, not HTTPS) can
+    # send the session cookie back on subsequent requests.
+    monkeypatch.setattr(config, "PRATHAM_COOKIE_SECURE", False, raising=False)
     try:
         from samagra.pratham import store as _pratham_store
         _pratham_store._INITIALIZED.clear()
+        from samagra.pratham import service as _pratham_service
+        _pratham_service._LIMITER._hits.clear()
     except Exception:  # noqa: BLE001 — package may not exist mid-build
         pass

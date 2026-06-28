@@ -11,8 +11,8 @@ from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import samagra
@@ -284,6 +284,53 @@ def api_factory_unpublish(payload: dict):
         return {"ok": True, "result": publish_run.unpublish(chapter, lanes=lanes, actor="owner")}
     except (ValueError, FileNotFoundError) as e:
         raise HTTPException(409, str(e))
+
+
+# -- G3 PRATHAM student identity (PUBLIC — deliberately NOT in _PROTECTED_*) ------
+# /learn stays public-by-design (DEC-11); the session cookie is the only credential.
+# The login write touches ONLY pratham.db (physically isolated from governance.db,
+# the inward build(), and the 7 subsystems).
+_PRATHAM_COOKIE = "pratham_session"
+
+
+def _rate_key(request: Request) -> str:
+    # Best-effort key for the login rate limiter. Behind cloudflared the TCP peer is
+    # loopback, so prefer Cf-Connecting-Ip when present — a CALLER-CONTROLLED header,
+    # used ONLY to blunt volume, NEVER to widen trust (the real brute-force defense is
+    # the code's entropy). Falls back to the TCP peer host.
+    return (request.headers.get("Cf-Connecting-Ip")
+            or (request.client.host if request.client else "unknown"))
+
+
+@app.post("/api/learn/login")
+def api_learn_login(payload: dict, request: Request):
+    code = (payload or {}).get("code")
+    if not isinstance(code, str) or not code.strip():
+        raise HTTPException(400, "code required")
+    from ..pratham import service
+    student = service.login(code.strip(), client_key=_rate_key(request))
+    if student is None:        # bad / revoked code OR rate-limited -> identical 401
+        raise HTTPException(401, "invalid code")
+    resp = JSONResponse({"student": {"id": student["id"], "name": student["name"]}})
+    resp.set_cookie(_PRATHAM_COOKIE, student["_session_token"], httponly=True,
+                    samesite="lax", secure=config.PRATHAM_COOKIE_SECURE, path="/",
+                    max_age=config.PRATHAM_SESSION_TTL_DAYS * 86400)
+    return resp
+
+
+@app.post("/api/learn/logout")
+def api_learn_logout(request: Request):
+    from ..pratham import service
+    service.logout(request.cookies.get(_PRATHAM_COOKIE))
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(_PRATHAM_COOKIE, path="/")
+    return resp
+
+
+@app.get("/api/learn/me")
+def api_learn_me(request: Request):
+    from ..pratham import service
+    return {"student": service.current_student(request.cookies.get(_PRATHAM_COOKIE))}
 
 
 @app.post("/api/refresh")
