@@ -328,6 +328,25 @@ def cmd_bridge(args) -> None:
                   f"({seed.get('status')})")
 
 
+def cmd_pratham(args) -> None:
+    from .pratham import service, store
+
+    if args.action == "enroll":
+        res = service.enroll(args.name)
+        print(f"pratham enroll: {res['name']} -> {res['id']}")
+        print(f"  code (give to the student; shown ONCE): {res['code']}")
+    elif args.action == "students":
+        rows = store.list_students()
+        if not rows:
+            print('pratham students: none enrolled yet (`pratham enroll "<name>"`).')
+        for r in rows:
+            print(f"  [{r['id']}] {r['status']:8} {r['name']}  "
+                  f"(last login {r['last_login_at'] or '-'})")
+    elif args.action == "revoke":
+        service.revoke(args.student_id)
+        print(f"pratham revoke: {args.student_id} revoked (sessions invalidated)")
+
+
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="samagra",
                                 description="SAMAGRA control plane")
@@ -445,6 +464,18 @@ def build_parser() -> argparse.ArgumentParser:
     ft_unpub.add_argument("--lanes", default=None, help="comma-separated lane subset")
     ft_sub.add_parser("published", help="print the current published corpus")
     ft.set_defaults(func=cmd_factory)
+
+    pr = sub.add_parser("pratham",
+                        help="student identity (Phase G3): enroll / students / revoke")
+    pr_sub = pr.add_subparsers(dest="action", required=True)
+    pr_en = pr_sub.add_parser("enroll",
+                              help="enroll a student (mints + prints a one-time code)")
+    pr_en.add_argument("name")
+    pr_sub.add_parser("students", help="list enrolled students")
+    pr_rv = pr_sub.add_parser("revoke",
+                              help="revoke a student (invalidates their sessions)")
+    pr_rv.add_argument("student_id")
+    pr.set_defaults(func=cmd_pratham)
 
     return p
 
