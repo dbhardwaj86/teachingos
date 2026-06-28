@@ -2,7 +2,9 @@
 // experience (mounted at /learn, NO operator OS-shell chrome) that reads ONLY the
 // public /api/published surface. The Saar (revision) sheet leads; each lane's
 // self-contained HTML renders in a sandboxed iframe (origin-isolated from the app).
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import type { Student } from "../../types/contracts";
+import { loginRequest, logoutRequest, meRequest } from "../../lib/pratham/session";
 import { useApi } from "../../hooks/useApi";
 import {
   artifactUrl, chaptersList, fileExts, laneLabel, laneSort, pickChapter, pickLane,
@@ -20,6 +22,36 @@ export default function Pratham() {
   const { data, loading, error } = useApi<PublishedManifest>("/api/published");
   const chapters = chaptersList(data);
   const [sel, setSel] = useState(() => parseLearnPath(window.location.pathname));
+
+  // G3: additive student identity. Anonymous reading is unchanged; a signed-in
+  // student gets a small shell header (their name + sign out). The corpus renders
+  // regardless of session.
+  const [student, setStudent] = useState<Student | null>(null);
+  const [signinOpen, setSigninOpen] = useState(false);
+  const [code, setCode] = useState("");
+  const [authErr, setAuthErr] = useState<string | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    meRequest().then((s) => { if (alive) setStudent(s); });
+    return () => { alive = false; };
+  }, []);
+
+  async function doLogin() {
+    setAuthErr(null);
+    try {
+      const r = await loginRequest(code.trim());
+      setStudent(r.student);
+      setSigninOpen(false);
+      setCode("");
+    } catch {
+      setAuthErr("That code didn't work. Check it and try again.");
+    }
+  }
+
+  async function doLogout() {
+    try { await logoutRequest(); } finally { setStudent(null); }
+  }
 
   const chapter = pickChapter(chapters, sel.chapter);
   const lanes = chapter ? laneSort(chapter.artifacts.map((a) => a.lane)) : [];
@@ -47,6 +79,43 @@ export default function Pratham() {
       }}>
         <strong style={{ fontSize: 18, letterSpacing: 0.2 }}>PRATHAM</strong>
         <span style={{ color: C.muted, fontSize: 13 }}>Published revision corpus</span>
+        <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 8 }}>
+          {student ? (
+            <>
+              <span data-testid="pratham-user" style={{ fontSize: 13, color: C.muted }}>
+                Signed in as {student.name}
+              </span>
+              <button data-testid="pratham-signout" onClick={doLogout}
+                style={{ border: `1px solid ${C.line}`, background: C.card, color: C.text,
+                  font: "inherit", padding: "5px 10px", borderRadius: 8, cursor: "pointer" }}>
+                Sign out
+              </button>
+            </>
+          ) : signinOpen ? (
+            <>
+              <input data-testid="pratham-signin-input" value={code}
+                onChange={(e) => setCode(e.target.value)} placeholder="Enter your code"
+                aria-label="enrollment code"
+                style={{ font: "inherit", padding: "5px 8px", borderRadius: 8,
+                  border: `1px solid ${C.line}` }} />
+              <button data-testid="pratham-signin-submit" onClick={doLogin}
+                style={{ border: 0, background: C.accent, color: "#fff", font: "inherit",
+                  padding: "6px 12px", borderRadius: 8, cursor: "pointer" }}>
+                Go
+              </button>
+              {authErr ? (
+                <span data-testid="pratham-signin-error" role="alert"
+                  style={{ fontSize: 12, color: "#b91c1c" }}>{authErr}</span>
+              ) : null}
+            </>
+          ) : (
+            <button data-testid="pratham-signin" onClick={() => setSigninOpen(true)}
+              style={{ border: `1px solid ${C.line}`, background: C.card, color: C.text,
+                font: "inherit", padding: "5px 10px", borderRadius: 8, cursor: "pointer" }}>
+              Sign in
+            </button>
+          )}
+        </div>
       </header>
 
       {chapters.length === 0 ? (
