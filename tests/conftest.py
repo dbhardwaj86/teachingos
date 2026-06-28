@@ -27,3 +27,13 @@ def isolate_data_db(monkeypatch, tmp_path):
     # default so existing API tests reach their handlers. tests/test_origin_auth.py
     # flips this back OFF to exercise the real gate.
     monkeypatch.setattr(config, "DISABLE_ORIGIN_AUTH", True, raising=False)
+    # G3: isolate the PRATHAM identity store too, so no test ever touches a real
+    # pratham.db (mirrors the DATA_DB/GOVERNANCE_DB isolation). The store memoizes
+    # schema-init by path; a fresh tmp path per test is already isolated, but clear
+    # the memo + repoint to be safe.
+    monkeypatch.setattr(config, "PRATHAM_DB", tmp_path / "pratham.db", raising=False)
+    try:
+        from samagra.pratham import store as _pratham_store
+        _pratham_store._INITIALIZED.clear()
+    except Exception:  # noqa: BLE001 — package may not exist mid-build
+        pass
