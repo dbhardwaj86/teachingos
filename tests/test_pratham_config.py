@@ -1,12 +1,15 @@
 # tests/test_pratham_config.py
 from samagra import config
+import samagra.config as _config
+
+_DEFAULT_PRATHAM_DB = _config.PRATHAM_DB  # captured at import, before the autouse fixture repoints it
 
 
 def test_pratham_db_is_a_sibling_durable_store():
     # Durable identity store, SEPARATE from the inward governance ledger.
-    assert config.PRATHAM_DB.name == "pratham.db"
-    assert config.PRATHAM_DB.parent == config.REPO_ROOT
-    assert config.PRATHAM_DB != config.GOVERNANCE_DB
+    assert _DEFAULT_PRATHAM_DB.name == "pratham.db"
+    assert _DEFAULT_PRATHAM_DB.parent == _config.REPO_ROOT
+    assert _DEFAULT_PRATHAM_DB != _config.GOVERNANCE_DB
 
 
 def test_pratham_cookie_secure_defaults_true():
