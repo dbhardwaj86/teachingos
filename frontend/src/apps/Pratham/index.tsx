@@ -43,11 +43,11 @@ export default function Pratham() {
   }, []);
 
   async function doLogin() {
-    meResolved.current = true;
     setAuthErr(null);
     try {
       const r = await loginRequest(code.trim());
       setStudent(r.student);
+      meResolved.current = true;   // authoritative ONLY on success; a failed attempt leaves hydration free to restore a valid session
       setSigninOpen(false);
       setCode("");
     } catch {
