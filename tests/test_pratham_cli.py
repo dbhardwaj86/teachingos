@@ -14,7 +14,11 @@ def test_enroll_prints_code_and_persists(tmp_path, monkeypatch, capsys):
     args = _args(["pratham", "enroll", "Asha"])
     args.func(args)
     out = capsys.readouterr().out
-    assert "Asha" in out and "code" in out.lower()
+    assert "Asha" in out and "shown ONCE" in out
+    # the printed code must be a real, non-empty token on the code line
+    code_line = next(l for l in out.splitlines() if "shown ONCE" in l)
+    printed_code = code_line.split(":")[-1].strip()
+    assert len(printed_code) >= 11
     assert len(store.list_students()) == 1
 
 
@@ -24,7 +28,10 @@ def test_students_lists_enrolled(tmp_path, monkeypatch, capsys):
     service.enroll("Asha")
     args = _args(["pratham", "students"])
     args.func(args)
-    assert "Asha" in capsys.readouterr().out
+    out = capsys.readouterr().out
+    assert "Asha" in out
+    # secrecy: the listing must never leak the stored code hash
+    assert store.list_students()[0]["code_hash"] not in out
 
 
 def test_revoke_marks_revoked(tmp_path, monkeypatch, capsys):
