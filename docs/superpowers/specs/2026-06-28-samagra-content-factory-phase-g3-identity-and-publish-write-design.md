@@ -202,14 +202,14 @@ def api_learn_login(payload: dict, request: Request):
         raise HTTPException(401, "invalid code")
     resp = JSONResponse({"student": {"id": student["id"], "name": student["name"]}})
     resp.set_cookie(_COOKIE, student["_session_token"], httponly=True,
-                    samesite="lax", secure=config.PRATHAM_COOKIE_SECURE, path="/")
+                    samesite="lax", secure=config.PRATHAM_COOKIE_SECURE, path="/api/learn")  # erratum: was "/" — see review 28
     return resp
 
 @app.post("/api/learn/logout")
 def api_learn_logout(request: Request):
     from ..pratham import service
     service.logout(request.cookies.get(_COOKIE))
-    resp = JSONResponse({"ok": True}); resp.delete_cookie(_COOKIE, path="/"); return resp
+    resp = JSONResponse({"ok": True}); resp.delete_cookie(_COOKIE, path="/api/learn"); return resp  # erratum: mirror the set path
 
 @app.get("/api/learn/me")
 def api_learn_me(request: Request):

@@ -312,8 +312,10 @@ def api_learn_login(payload: dict, request: Request):
     if student is None:        # bad / revoked code OR rate-limited -> identical 401
         raise HTTPException(401, "invalid code")
     resp = JSONResponse({"student": {"id": student["id"], "name": student["name"]}})
+    # path="/api/learn": the token is honored only by /api/learn/* (spec §5.3/§8),
+    # so the browser must not attach it to operator-console or asset requests.
     resp.set_cookie(_PRATHAM_COOKIE, student["_session_token"], httponly=True,
-                    samesite="lax", secure=config.PRATHAM_COOKIE_SECURE, path="/",
+                    samesite="lax", secure=config.PRATHAM_COOKIE_SECURE, path="/api/learn",
                     max_age=config.PRATHAM_SESSION_TTL_DAYS * 86400)
     return resp
 
@@ -323,7 +325,8 @@ def api_learn_logout(request: Request):
     from ..pratham import service
     service.logout(request.cookies.get(_PRATHAM_COOKIE))
     resp = JSONResponse({"ok": True})
-    resp.delete_cookie(_PRATHAM_COOKIE, path="/",
+    # Deletion only matches a cookie set with the SAME path — mirror /api/learn.
+    resp.delete_cookie(_PRATHAM_COOKIE, path="/api/learn",
                        secure=config.PRATHAM_COOKIE_SECURE, httponly=True, samesite="lax")
     return resp
 

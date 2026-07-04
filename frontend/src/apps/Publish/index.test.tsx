@@ -4,9 +4,14 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import Publish from "./index";
 
 vi.mock("../../hooks/useApi", () => ({
+  // The REAL /api/assignments contract is {assignments: [...], events: [...]} —
+  // NOT a bare array (samagra/api/app.py api_assignments). Mocking the true
+  // shape here is load-bearing: a bare-array mock let the component ship with a
+  // TypeError against the live backend (Codex review 28 / adversarial G3 review).
   useApi: (path: string) =>
     path.startsWith("/api/assignments")
-      ? { data: [{ seed_ref: "textbook:circular-motion", pipeline: "revision", status: "captured" }],
+      ? { data: { assignments: [{ seed_ref: "textbook:circular-motion", pipeline: "revision", status: "captured" }],
+            events: [] },
           loading: false, error: null }
       : { data: { chapters: {} }, loading: false, error: null },
 }));

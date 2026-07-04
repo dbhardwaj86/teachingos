@@ -21,7 +21,10 @@ export function publishRows(
   manifest: PublishedManifestLike | null | undefined,
 ): PublishRow[] {
   const captured = new Map<string, Set<string>>();
-  for (const a of assignments ?? []) {
+  // Defensive: a non-array (e.g. the whole {assignments, events} response object
+  // passed by mistake) must degrade to "no rows", never throw mid-render.
+  const list = Array.isArray(assignments) ? assignments : [];
+  for (const a of list) {
     if (a?.status !== "captured") continue;
     const ref = a?.seed_ref ?? "";
     if (!ref.startsWith(_TEXTBOOK)) continue;

@@ -39,6 +39,22 @@ def test_login_cookie_flags_httponly_samesite(tmp_path, monkeypatch):
     set_cookie = r.headers["set-cookie"].lower()
     assert "httponly" in set_cookie and "samesite=lax" in set_cookie
     assert "max-age=" in set_cookie
+    # Spec §5.3/§8: the session cookie is honored only on /api/learn/* — scope the
+    # browser-side path accordingly, never "/" (G3 adversarial review, LOW).
+    assert "path=/api/learn" in set_cookie
+
+
+def test_logout_cookie_deletion_mirrors_path(tmp_path, monkeypatch):
+    # delete_cookie only clears a cookie whose path matches the one it was set
+    # with — the logout mirror must carry the same /api/learn scope.
+    c = _client(tmp_path, monkeypatch)
+    from samagra.pratham import service
+    code = service.enroll("Asha")["code"]
+    c.post("/api/learn/login", json={"code": code})
+    r = c.post("/api/learn/logout")
+    set_cookie = r.headers["set-cookie"].lower()
+    assert "pratham_session" in set_cookie
+    assert "path=/api/learn" in set_cookie
 
 
 def test_login_wrong_code_is_401(tmp_path, monkeypatch):

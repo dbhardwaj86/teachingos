@@ -12,10 +12,12 @@ export default function Publish() {
   const [nonce, setNonce] = useState(0);
   // useApi refetches when the path changes -> a cache-busting nonce reloads both
   // sources after a publish/unpublish.
-  const asg = useApi<AssignmentLike[]>(`/api/assignments?_=${nonce}`);
+  // /api/assignments returns {assignments, events} (samagra/api/app.py) — never
+  // a bare array; unwrap before the pure merge.
+  const asg = useApi<{ assignments?: AssignmentLike[] }>(`/api/assignments?_=${nonce}`);
   const man = useApi<PublishedManifestLike>(`/api/published?_=${nonce}`);
   const { post, error } = useApiPost<{ ok: boolean }>();
-  const rows = publishRows(asg.data, man.data);
+  const rows = publishRows(asg.data?.assignments, man.data);
 
   async function act(path: string, chapter: string) {
     const r = await post(path, { chapter });

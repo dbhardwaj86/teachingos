@@ -43,4 +43,11 @@ describe("publishRows", () => {
   it("is defensive against null inputs", () => {
     expect(publishRows(null, null)).toEqual([]);
   });
+
+  it("degrades to no rows (never throws) when handed the raw {assignments,events} response object", () => {
+    // Regression for review-28 / adversarial G3 review: the component once passed
+    // the whole /api/assignments response object; that must not crash the render.
+    const wholeResponse = { assignments, events: [] } as unknown as never;
+    expect(publishRows(wholeResponse, manifest)).toEqual([]);
+  });
 });
