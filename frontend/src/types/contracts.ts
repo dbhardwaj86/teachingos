@@ -2,7 +2,7 @@
 export type AppId =
   | "dashboard" | "pipelines" | "assignments" | "org" | "questions" | "lectures"
   | "booklets" | "insp" | "sims" | "mycontentdev" | "munshi" | "activity"
-  | "settings" | "terminal" | "clock" | "notes" | "snake" | "atlas";
+  | "settings" | "terminal" | "clock" | "notes" | "snake" | "atlas" | "publish";
 
 // G3: a PRATHAM student identity (the /api/learn/me + login shape).
 export interface Student { id: string; name: string; }

@@ -76,6 +76,7 @@ const APP_DIR: Record<AppId, string> = {
   notes: "Notes",
   snake: "Snake",
   atlas: "Atlas",
+  publish: "Publish",
 };
 
 // Appearance radio rows for the desktop menu (README §Context menus — theme checks).
