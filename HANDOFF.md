@@ -1,5 +1,19 @@
 # SAMAGRA — Handoff
 
+> **▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE G3 (multi-tenant PRATHAM identity + the outward publish write path — SAMAGRA's FIRST inbound HTTP writes) BUILT TDD + DEC-7 Codex pre-merge review + adversarial multi-lens final review + MERGED to `main` + PUSHED to `origin/main` 2026-07-05 (branch `feature/content-factory-phase-g3`) — durable.**
+> G3 opens two physically isolated write boundaries on top of G1/G2. Driven by the owner's continuation of the ratified DEC-9 ordering (Phase G before Phase F).
+> - **(a) Owner publish over HTTP** — `POST /api/factory/publish` + `POST /api/factory/unpublish`, added to `origin_auth._PROTECTED_POSTS` (now **7 protected POSTs + 4 protected GETs**), a **thin delegate to the already-reviewed G1 `publish.run`** — no new write mechanism, the never-automated publish gate simply gained a second owner trigger beside the CLI. Plus a minimal operator **Publish** GUI app — the console's **19th app**.
+> - **(b) Student identity** — new `samagra/pratham/` package over a **SEPARATE durable gitignored `pratham.db`** (students + sessions, secrets sha256-at-rest). Owner-minted enrollment codes (shown exactly once by `samagra pratham enroll`) redeem at public `POST /api/learn/login` for opaque 256-bit sessions in an `HttpOnly`/`SameSite=Lax`/`Secure` cookie scoped `path=/api/learn`; `POST /api/learn/logout` + `GET /api/learn/me` complete the trio; revoke = instant invalidation; identical-401 no-oracle. `/learn` stays public — sign-in is purely **additive** (anonymous reading unchanged). CLI: `samagra pratham enroll | students | revoke`.
+> - **Golden threads PROVEN:** publish-over-HTTP ≡ the G1 CLI result; enroll→login→me→revoke round trip; the durable `governance.db` byte-isolated from every identity write.
+> - **DEC-7 dedicated Codex pre-merge review** (`docs/codex-reviews/28-g3-identity-publish-write-premerge.report.md`) = **GO-WITH-CAVEATS, 0 HIGH/MED** — both caveats (the Publish GUI crashing on the real `{assignments,events}` response shape; the session cookie's `path="/"`) **remediated TDD with regressions** → effectively **GO**.
+> - **Adversarial final review** (4 lenses — firewall / security / spec-fidelity / separate-entity, every finding refute-verified by 3 independent skeptics): **0 HIGH/MED** — the firewall lens found **NOTHING**, spec-fidelity **PASSED with zero findings**; 3 security LOWs **accepted as documented risks** (best-effort rate limiter; benign 409 error text; the pre-existing weaker email-header owner-gate fallback now also covering publish — closed by owner config, see follow-ups).
+> - **DEC-12 RATIFIED** — pins the G3 invariant set (see the Direction-coherence DECISION block below). **DEC-10 and DEC-11** (previously *proposed* in the G1/G2 banners) are **formally promoted to ratified** at the same time.
+> - **Gate: 608 pytest** (1 skipped = opt-in live-LLM smoke) + **604 vitest** (72 files); `tsc --noEmit` + `npm run build` green.
+> - **⚠ Owner follow-ups:** (a) `pratham.db` is created on first `samagra pratham enroll`; (b) set `SAMAGRA_PRATHAM_COOKIE_SECURE=0` for local http dev; (c) public exposure of `/learn` + `/api/published` + `/api/learn/*` remains a separate owner deploy step (carried from G2, now **urgent** since login endpoints exist); (d) configure `SAMAGRA_ACCESS_AUD` + `SAMAGRA_ACCESS_TEAM_DOMAIN` (now templated in `.env.example`) so the origin gate verifies real Cloudflare Access JWTs — the spoofable email-header fallback's blast radius now includes publish; (e) the live stores are still **EMPTY** (`published/` doesn't exist, 0 students, 1 legacy assignment) — the next real milestone is the **first live throughput run**: `factory plan textbook:<slug>` → `approve-seed` → `build` → `publish` → verify at `/learn`.
+> - **▶ NEXT: Phase G3 is COMPLETE.** **Phase G4** (the adaptive student twin — per-student selection over the Phase-E coverage graph, progress tracking) is being planned in detail next, per DEC-9's ratified ordering (Phase G before Phase F); **Phase F** (the heavy async LLM lanes) follows after G4.
+>
+> ---
+>
 > **▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE G2 (the OUTWARD READ SURFACE + PRATHAM `/learn` reader — SAMAGRA's FIRST outward, read-only, public-by-design crossing) BUILT subagent-driven TDD (9 tasks, fresh implementer + 2-stage spec+quality review each) + adversarial multi-lens final review (14-agent Workflow `wf_d4ae0d21-6cf`, 4 lenses × independent refute-verify) + MERGED to `main` + PUSHED to `origin/main` 2026-06-27 (branch `feature/content-factory-phase-g2`, 15 commits; ff `e753f02..d95267b`) — durable.**
 > G2 = the first consumer of the G1 published corpus. Driven by the user's **"lets go for phase G2."**
 > - **(a) Backend `samagra/factory/publish/read.py`** (new, PURE, read-only over `run.list_published()`): `published_manifest()` (graceful-empty delegate) + `resolve_artifact(chapter,lane,kind=html)` — resolves the file **FROM the manifest** (never a client path), re-validates a `<safe>/<safe>` `_SAFE_SEGMENT` pair + `relative_to(PUBLISHED_DIR)` containment, **re-verifies sha256** (mismatch raises), returns `{rel,abs_path,bytes,sha256,media_type}` (unknown chapter/lane/kind/missing → `None`).
@@ -11,7 +25,7 @@
 > - **⚠ Process catches:** a subagent caught a real error in the PLAN's golden-test assertion (the `revision` lane renders the **`thin`** variant, not `"revision"`) and a latent **`.gitignore` collision** (G1's unanchored `published/` was silently hiding the new `frontend/src/lib/published/` source dir — fixed by anchoring to `/published/` + a negation). Both verified before applying.
 > - **Gate: 562 pytest** (1 skipped = opt-in live-LLM smoke; **no failures**) + **583 vitest** (68 files) + build green.
 > - **Artifacts:** spec `docs/superpowers/specs/2026-06-27-samagra-content-factory-phase-g2-outward-read-surface-design.md`; plan `docs/superpowers/plans/2026-06-27-samagra-content-factory-phase-g2-outward-read-surface.md`; new `samagra/factory/publish/read.py`; API `samagra/api/app.py`; frontend `frontend/src/{main.tsx,apps/Pratham,lib/published}`; tests `tests/test_publish_read.py` + `tests/test_published_api.py`.
-> - **▶ NEXT: Phase G2 is COMPLETE.** Remaining choices (owner's call): **Phase G3** (multi-tenant identity — PRATHAM identity + the outward `POST /api/factory/publish` write path live here) · **Phase G4** (the adaptive student twin) · or **Phase F** (the heavy async LLM lanes). **⚠ OWNER:** the `/learn` surface is **code-only / deploy-ready** — actually exposing it publicly (a separate hostname or a Cloudflare-Access bypass for `/learn` + `/api/published`) is a separate owner-driven deploy step.
+> - **▶ NEXT (at G2 time): Phase G2 is COMPLETE.** Remaining choices (owner's call): **Phase G3** (multi-tenant identity — PRATHAM identity + the outward `POST /api/factory/publish` write path live here) · **Phase G4** (the adaptive student twin) · or **Phase F** (the heavy async LLM lanes). **⚠ OWNER:** the `/learn` surface is **code-only / deploy-ready** — actually exposing it publicly (a separate hostname or a Cloudflare-Access bypass for `/learn` + `/api/published`) is a separate owner-driven deploy step. **(Update: Phase G3 — multi-tenant PRATHAM identity + the outward publish write path — has since SHIPPED 2026-07-05; see the top banner. Next: Phase G4.)**
 >
 > ---
 >
@@ -704,6 +718,26 @@ and live suites are **backend 106 pytest + frontend 501 vitest** green. **The dr
    gate" that must run before further GUI/deploy work; DEC-2 is relaxed to *advisory* (above). **Unchanged &
    still binding:** DEC-1 (bounded scope), DEC-3 (scope firewall), the never-automated publish gate, and DEC-5
    (Phase 3 next — now ungated by DEC-4).
+7. **DEC-10 · G1 publish-boundary invariants — RATIFIED 2026-07-05 (formally promoted from proposed at Phase
+   G1, 2026-06-26).** NO public/outward network surface at G1 (that arrived at G2/G3); NO new write path to the
+   7 source subsystems; NO governance migration / NO new table / NO assignment-state-machine change (only new
+   append-only event verbs `published`/`unpublished`); the inward `build()` boundary + its 5 crash-safety guards
+   untouched; the never-automated publish gate is manual-CLI only (at G1); the mcd `seed` lane excluded (no
+   local artifact).
+8. **DEC-11 · G2 outward-read-surface invariants — RATIFIED 2026-07-05 (formally promoted from proposed at
+   Phase G2, 2026-06-27).** NO new write path anywhere; the two public endpoints serve **only** owner-published
+   bytes resolved through the manifest (never `_publications/`, `governance.db`, `EXPORT_DIR`, or the 7
+   subsystems); public-by-design (the gate was already crossed at G1 publish); separate-entity (the console at
+   `/` stays byte-unchanged; the `/learn` reader imports NO shell module); the inward `build()` + 5 guards + the
+   never-automated publish gate untouched; NO migration/table/state-machine change.
+9. **DEC-12 · G3 identity + outward-publish invariants — RATIFIED 2026-07-05.** (1) The publish gate holds —
+   owner-gated, never-automated, delegating only to the reviewed G1 code, no new write mechanism (only a second
+   owner trigger, HTTP beside CLI). (2) Identity is owner-enrolled, session-based, and **OPTIONAL** — no open
+   self-registration, `/learn` stays public, no per-student learning state until G4. (3) Firewall by **physical
+   isolation** — publish writes only `published/` + append-only governance events, student login writes ONLY
+   `pratham.db`, the 7 read-only subsystems + the inward `build()` + its 5 crash guards untouched. (4)
+   `pratham.db` is durable + gitignored; no `governance.db` migration, no new governance table, no
+   assignment-state-machine change.
 
 This decision is recorded across STATUS.html (*Direction coherence*), SUMMARY.html, both specs and CLAUDE.md, so
 it travels with the project. Reviews that informed it: `docs/superpowers/_research/samagra-os/_vision-review-output.md`.

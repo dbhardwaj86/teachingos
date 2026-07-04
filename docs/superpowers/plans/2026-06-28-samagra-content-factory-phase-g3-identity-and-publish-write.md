@@ -1,5 +1,15 @@
 # SAMAGRA Content Factory — Phase G3 (multi-tenant identity + outward publish write path) Implementation Plan
 
+> **✅ COMPLETE (2026-07-05).** Tasks 1–12 all executed; merged to `main` fast-forward and pushed.
+> Review gate: dedicated DEC-7 Codex pre-merge review **28 GO-WITH-CAVEATS → both caveats
+> (Publish-GUI `/api/assignments` shape crash; `pratham_session` cookie `path="/"`) remediated TDD →
+> effectively GO** (`docs/codex-reviews/28-g3-identity-publish-write-premerge.report.md`); 4-lens
+> adversarial final review = 0 HIGH/MED (firewall: nothing; spec-fidelity: PASS; 3 security LOWs
+> accepted as documented best-effort/owner-config items). DEC-12 ratified in `HANDOFF.md`.
+> Final gate: 608 pytest passed + 1 skip (opt-in live-LLM smoke), 604 vitest (72 files), tsc + build
+> green. Per project convention the step checkboxes below are left unchecked — completion is recorded
+> here and in the CLAUDE.md / HANDOFF.md / STATUS.html banners.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Give SAMAGRA its first inbound write paths — an owner-gated `POST /api/factory/publish|unpublish` (the GUI/network sibling of G1's CLI publish) and a lightweight multi-tenant student identity (owner-minted enrollment codes → opaque, revocable, server-side sessions in a *separate* durable `pratham.db`) — while keeping `/learn` public and every standing invariant intact.
@@ -1918,7 +1928,7 @@ git commit -m "feat(g3): minimal operator Publish control + registry wiring"
 ## Task 12: Full verification gate + docs/trackers
 
 **Files:**
-- Modify: `STATUS.html`, `SAMAGRA-HANDOFF.md` (or the project's current trackers), `CLAUDE.md` G-status block — end-of-slice updates.
+- Modify: `STATUS.html`, `HANDOFF.md`, `SUMMARY.html` (the live trackers — NOT the superseded `SAMAGRA-HANDOFF.md`), `CLAUDE.md` G-status block — end-of-slice updates.
 
 - [ ] **Step 1: Run the full backend suite**
 

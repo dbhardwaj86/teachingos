@@ -349,11 +349,54 @@
 > `/learn` surface is **code-only / deploy-ready** — actually exposing it publicly (a separate hostname or a
 > Cloudflare-Access bypass for `/learn` + `/api/published`) is a separate owner-driven deploy step (a G2 follow-up).
 >
-> **NEXT: Phase G2 (outward read surface + PRATHAM `/learn` reader) is COMPLETE. Remaining choices — owner's call:
-> Phase G3 (multi-tenant identity — PRATHAM identity + the outward `POST /api/factory/publish` write path live here),
-> Phase G4 (the adaptive student twin), or Phase F (the heavy async LLM lanes — NotebookLM audio/slides, image-gen
-> figures).** The G2 public surface is code-only/deploy-ready; the actual public exposure of `/learn` is a separate
-> owner deploy step. **DEC-8 invariants unchanged.**
+> **✅ PHASE G3 (MULTI-TENANT PRATHAM IDENTITY + THE OUTWARD PUBLISH WRITE PATH — SAMAGRA's FIRST inbound HTTP
+> write boundaries) BUILT TDD + dedicated DEC-7 Codex pre-merge review (review **28 GO-WITH-CAVEATS → both caveats
+> remediated TDD → effectively GO**) + 4-lens adversarial final review + MERGED to `main` + PUSHED 2026-07-05**
+> (branch `feature/content-factory-phase-g3`; spec `74682b2` → remediation `4b0ee9a`; durable). Two PHYSICALLY
+> ISOLATED write boundaries: **(1) owner publish over HTTP** — `POST /api/factory/publish|unpublish` added to
+> `origin_auth._PROTECTED_POSTS` (now 7 protected POSTs + 4 protected GETs; `docs/deploy-tunnel.md` re-synced), a
+> THIN delegate to the already-reviewed G1 `publish.run` — **no new write mechanism**, the never-automated gate
+> only gained a second owner trigger beside the CLI; **(2) student identity** — new `samagra/pratham/`
+> (`identity` pure crypto/rate-limit · `store` I/O · `service` orchestration) over a SEPARATE durable gitignored
+> **`pratham.db`** (students + sessions, secrets sha256-at-rest, schema v1): owner-minted enrollment codes
+> (`token_urlsafe(9)`, printed exactly ONCE) → public `POST /api/learn/login|logout` + `GET /api/learn/me`
+> (opaque 256-bit sessions; HttpOnly+SameSite=Lax+Secure cookie **scoped `path=/api/learn`**; identical-401
+> no-oracle incl. rate-limited; revoke = instant invalidation). CLI **`samagra pratham enroll|students|revoke`**
+> (code hash never shown). Frontend: **additive** student sign-in/out in the `/learn` reader (anonymous reading
+> byte-identical; hydration-race hardened) + the operator **Publish** app (19th console app) over PURE
+> `lib/publishctl/rows.ts`. Golden threads PROVEN: publish-over-HTTP ≡ G1 CLI result · enroll→login→me→revoke ·
+> `governance.db` BYTE-ISOLATED from every identity write. **Reviews:** Codex 28 = 0 HIGH/MED on both boundaries;
+> its LOW (the Publish GUI typed `/api/assignments` as a bare array — the real `{assignments,events}` shape threw
+> mid-render; the GUI's own mocks encoded the same wrong shape) + the known cookie `path="/"` were BOTH fixed TDD
+> with regressions (`4b0ee9a`). Adversarial 4-lens × 3-skeptic refute-verify: firewall lens = NOTHING (transitive
+> import trace clean); spec-fidelity = PASS, zero findings; separate-entity = 1 LOW (the cookie path) FIXED;
+> security = 0 HIGH/MED + 3 LOW ACCEPTED as documented (best-effort spoofable rate key — entropy is the real
+> defense; benign 409 `str(e)` vocabulary; the pre-existing weaker email-header fallback now also gates publish →
+> owner follow-up (d) below). A 5-agent plans-consistency audit also ran: fixes = `docs/deploy-tunnel.md`
+> endpoint enumeration, `.env.example` origin-auth + QX-sidecar blocks, the G3 plan's tracker pointer, a
+> `docs/codex-reviews/README.md` index. **DEC-12 RATIFIED** (and DEC-10/DEC-11 formally promoted alongside it in
+> `HANDOFF.md`): the publish gate holds (owner-gated, never-automated, delegates only to reviewed G1 code) ·
+> identity is owner-enrolled/session-based/OPTIONAL (no open registration; `/learn` stays public; NO per-student
+> learning state until G4) · firewall by physical isolation (publish writes only `published/` + append-only
+> governance events; login writes ONLY `pratham.db`; the 7 subsystems + inward `build()` + 5 guards untouched) ·
+> `pratham.db` durable + gitignored · NO governance migration/table/state-machine change. Gate **608 pytest**
+> (609 collected; 1 skip = opt-in live-LLM smoke; 0 failures) + **604 vitest** (72 files) + tsc + build green.
+> ⚠ **OWNER:** (a) `pratham.db` is created on first `samagra pratham enroll`; (b) set
+> `SAMAGRA_PRATHAM_COOKIE_SECURE=0` for local http dev; (c) public exposure of `/learn` + `/api/published` +
+> `/api/learn/*` is still the separate owner deploy step (G2 carry-over — now urgent, login endpoints exist);
+> (d) configure `SAMAGRA_ACCESS_AUD` + `SAMAGRA_ACCESS_TEAM_DOMAIN` (templated in `.env.example`) so the origin
+> gate verifies real Access JWTs — the spoofable email-header fallback's blast radius now includes publish;
+> (e) the live stores are still EMPTY (no `published/`, 0 students, 1 legacy assignment) — the next milestone is
+> the first REAL throughput run: `factory plan textbook:<slug>` → `approve-seed` → `build` → `publish` → verify at
+> `/learn`. Spec `docs/superpowers/specs/2026-06-28-samagra-content-factory-phase-g3-identity-and-publish-write-design.md`;
+> plan `docs/superpowers/plans/2026-06-28-samagra-content-factory-phase-g3-identity-and-publish-write.md`; review
+> `docs/codex-reviews/28`.
+>
+> **NEXT: Phase G3 is COMPLETE — the PRATHAM arc is now G1 (publish) + G2 (read) + G3 (identity), leaving G4.
+> Phase G4 (the adaptive student twin — per-student selection over the Phase-E coverage graph, progress tracking)
+> is the next phase being planned in detail per DEC-9's ratified ordering (Phase G before Phase F); Phase F (the
+> heavy async LLM lanes — NotebookLM audio/slides, image-gen figures, Tier-2/3 coverage edges) follows after G4.**
+> The `/learn` public exposure remains a separate owner deploy step. **DEC-8 invariants unchanged.**
 >
 > **✅ Direction-coherence decision (ratified 2026-06-21 by Deepak; amended by DEC-6 on 2026-06-22):** a coherence
 > audit found execution solid but the strategic direction drifting — "SAMAGRA OS" had re-introduced the OS-sized
@@ -393,8 +436,11 @@
 
 <!-- scribe:begin v1 -->
 ## TeachingOS memory — auto-generated by scribe; edit OUTSIDE this block only
-_Updated 2026-06-27T16:12. Source: agent session distillation._
-- (5) 2026-06-27 claude: Phase G (PRATHAM) will be implemented before Phase F (async LLM lanes), reversing DEC-9 deferral. [PRATHAM, TeachingOS, phase order]
+_Updated 2026-07-04T18:14. Source: agent session distillation._
+- (5) 2026-07-02 claude: Decided to prioritize student-facing features over being just a content viewer. [Samagra, student-facing, product direction]
+- (5) 2026-06-28 claude: User approved design for Phase G3 of TeachingOS: multi-tenant student identity (PRATHAM) + POST /api/factory/publish write path. [design, G3, TeachingOS]
+- (5) 2026-06-28 claude: Project named TeachingOS is the focus of development. [project, TeachingOS]
+- (5) 2026-06-27 claude: User decided to execute Phase G (PRATHAM) before Phase F, reversing the earlier deferral per DEC-9. [TeachingOS, PRATHAM, Phase G, Phase F]
 - (5) 2026-06-26 codex: Manifest generation fails when concept tags are missing, throwing unhandled KeyError. [manifest, error handling, KeyError]
 - (5) 2026-06-26 codex: Missing JWT authentication on POST /api/questions in samagra/questions_proxy.py [authentication, API security]
 - (5) 2026-06-26 codex: org.py endpoint GET /org/{id}/members allows enumeration without authorization (IDOR) [IDOR, authorization]
@@ -408,13 +454,13 @@ _Updated 2026-06-27T16:12. Source: agent session distillation._
 - (5) 2026-06-24 claude: SAMAGRA (TeachingOS project) is implementing a content-factory pivot to generate multi-output physics content for JEE/NEET, moving beyond a read-only console. [SAMAGRA, TeachingOS, content factory, JEE/NEET physics]
 - (5) 2026-06-24 codex: Core logic matches design spec docs/superp; no fundamental issues. [design, validation]
 - (5) 2026-06-23 codex: Remediation commit 91baeeb resolves H1 (high severity) and M1 (medium severity) completely. [remediation, severity]
-- (5) 2026-06-23 claude: Phase 3 scope is backend bridge + CLI, defined during brainstorming. [Phase 3, backend bridge, CLI, SAMAGRA]
+- (5) 2026-06-23 claude: Phase 3 scope is defined as backend bridge plus CLI for the active loop (DEC-5's primary value engine). [phase 3, active loop, backend bridge, CLI]
 - (5) 2026-06-22 claude: TDD is enforced strictly: write test first, watch it fail, then minimal code. [TDD]
-- (5) 2026-06-22 claude: User instructed to merge and push changes to make the deployment durable. [Git merge, Git push, deployment]
+- (5) 2026-06-22 claude: Plan to perform priority fixes and rescope the ROI gate in a new session, with handoff updates. [priority fixes, ROI gate, handoff, TeachingOS]
+- (5) 2026-06-22 claude: User finalized deployment by merging and pushing changes to make it durable. [merge, push, durable]
 - (5) 2026-06-22 claude: The autonomous ralph loop is driving SAMAGRA OS to a fully working state. [SAMAGRA OS, ralph loop, autonomous deployment]
 - (5) 2026-06-22 claude: The Ralph loop's mission is to drive the SAMAGRA OS app to fully working, served from frontend/dist/ by FastAPI on :8799. [Ralph, SAMAGRA OS, FastAPI]
 - (5) 2026-06-21 claude: The session concluded with a plan to improve the app in a custom ralph loop and deploy to Cloudflare with a custom URL pointing to a localhost tunnel. [deployment, Cloudflare, localhost tunnel, ralph loop]
-- (5) 2026-06-21 claude: The test-driven-development skill was applied: tests were written before code, and tests were seen to fail before passing. [test-driven-development, TDD, testing]
 - (5) 2026-06-21 claude: Munshi auth uses a single shared-secret cookie model: GET /login?k=<secret> sets the cookie; subsequent /api/ calls must carry it. [Munshi, authentication, cookie]
 - (5) 2026-06-21 claude: Immediate next step: update handoffs and project trackers plus summary (option B). [planning, project tracking]
 - (5) 2026-06-21 claude: Scope firewall and attention-ROI gate were implemented to prevent scope creep and maintain focus. [scope firewall, attention-ROI gate, project management]
@@ -426,8 +472,5 @@ _Updated 2026-06-27T16:12. Source: agent session distillation._
 - (5) 2026-06-19 claude: Phase 0 executed: repo renamed from teachingos to samagra, Python package renamed, catalog rebuilt to 7,044 artifacts, 11/11 tests green, docs rebranded. [SAMAGRA, teachingos, rename, catalog, tests, docs]
 - (5) 2026-06-19 claude: Used a subagent team with a judge agent to debate the Samagra vision over two rounds. [subagent team, judge agent, deliberation]
 - (5) 2026-06-19 claude: Produced 10 concrete suggestions for improving the future vision direction based on the current intent. [suggestions, vision direction]
-- (5) 2026-06-18 claude: The final plan was recorded using `cbm record-plan docs/superpowers/plans/2026-06-19-samagra-evolution.md --title 'SAMAGRA Evolution'`. [cbm, record-plan, plan storage]
-- (5) 2026-06-18 claude: TeachingOS uses two Claude Max subscriptions: one acts as CEO (claude-deepak) and another as a subordinate agent for task execution. [multi-agent, Claude, CEO]
-- (4) 2026-06-27 claude: TeachingOS uses the brainstorming skill to turn ideas into approved designs. [brainstorming]
 Deep recall: C:\SandBox\claude_box\memboxes\scribe\bin\scribe.cmd q "<topic>"
 <!-- scribe:end -->

@@ -17,12 +17,22 @@ sidecar on `:8783` stays internal and is reached via the same-origin
 
 > ⚠️ **Access before exposure (hard rule).** Never `cloudflared tunnel run` this
 > hostname before its Cloudflare Access application exists and is verified. The
-> origin exposes **five mutating POSTs** that must never be reachable
+> origin exposes **seven mutating POSTs** that must never be reachable
 > unauthenticated:
 > `POST /api/refresh`, `POST /api/tick`, **`POST /api/gate/{pipeline}/{decision}`
 > (advances the human publish gate — `…/textbook/approve`)**,
-> `POST /api/munshi/capture`, `POST /api/mcd/seeds` — plus the two admin-keyed
-> live reads (`GET /api/munshi/library`, `GET /api/mcd/seeds`).
+> `POST /api/munshi/capture`, `POST /api/mcd/seeds`, and (since Phase G3)
+> **`POST /api/factory/publish`**, **`POST /api/factory/unpublish`** (the outward
+> publish gate's HTTP trigger) — plus the four protected GETs
+> (`GET /api/munshi/library`, `GET /api/mcd/seeds`, `GET /api/search`,
+> `GET /api/assignments`). The authoritative list is
+> `_PROTECTED_POSTS`/`_PROTECTED_GETS` in `samagra/api/origin_auth.py` — keep this
+> paragraph in sync with it.
+> **Deliberately public (by design, DEC-11/DEC-12):** `GET /api/published*`,
+> `/learn`, and the Phase-G3 student session trio `POST /api/learn/login`,
+> `POST /api/learn/logout`, `GET /api/learn/me` — these are the outward student
+> surface and are *excluded* from the origin gate on purpose; the session cookie
+> is their only credential and the login path writes only `pratham.db`.
 > As of **W1.1** the origin **also fails closed** (defence-in-depth, §5): remote
 > requests to those routes require a verified Access identity. But because
 > `cloudflared` connects from loopback, that origin gate only blocks *non-loopback*
