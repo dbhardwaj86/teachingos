@@ -22,6 +22,7 @@ Verdicts: **GO** / **GO-WITH-CAVEATS** (ship after the caveats are closed) / **N
 | 26 | Phase C3 seed-fold — the ONE assignment-driven mcd write | GO-WITH-CAVEATS → closed |
 | 27 | Whole-codebase adversarial bug hunt (post-G1; 7 Codex dims × Claude refute-verify) | 0 HIGH / 3 MED / 12 LOW |
 | 28 | Phase G3 identity + publish-write boundaries (DEC-7 pre-merge) | GO-WITH-CAVEATS → both caveats fixed TDD → effectively GO |
+| 29 | Phase G4 adaptive-twin pre-merge (student progress write + `/learn/next` recommender) | GO-WITH-CAVEATS: 0 findings, all 6 DEC-13 invariants PASS; caveat = sandbox couldn't execute pytest (test-gap closed post-review) |
 
 The Phase D2 LLM generation boundary review (NO-GO → GO) is recorded in the D2 plan
 (`docs/superpowers/plans/2026-06-25-samagra-content-factory-phase-d2-samadhan.md`)

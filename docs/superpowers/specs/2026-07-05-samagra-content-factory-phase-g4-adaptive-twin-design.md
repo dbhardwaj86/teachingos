@@ -121,7 +121,9 @@ self-service, gated by the session cookie, exactly like `GET /api/learn/me`).
 - **Queue computation** (`next_best.rank_next`, PURE): candidates = every `(chapter, lane)`
   in the published manifest, minus the student's done-set; `score` = the chapter's summed
   concept demand (`SUM(concept.demand_size)` over `concept_chapter` edges, computed by the
-  glue via `connect_ro`; `FileNotFoundError`/unbuilt graph → all scores 0); sort =
+  glue via `connect_ro`; `FileNotFoundError`/unbuilt graph → all scores 0 — and, as shipped,
+  a corrupt or mid-rebuild `concept_graph.db` (`sqlite3.Error` on the query) degrades
+  identically to an unranked queue, never a 500); sort =
   `(-score, lane_priority, chapter)` with lane priority mirroring the reader's Saar-led
   `LANE_ORDER` (`revision, lecture, deck, paper, drill, samadhan` — a deliberate TS↔Python
   duplication, commented at both sites); cap at `_QUEUE_SIZE = 8`; `reason` = `"high-demand"`
@@ -152,8 +154,9 @@ pre-G4 (a regression test freezes the anonymous testid set BEFORE any new JSX la
 2. **Write-path isolation:** a full mark sequence leaves `governance.db` **byte-unchanged**
    and creates/modifies nothing outside `pratham.db` (mirrors the G3 isolation thread).
 3. **Anonymous invariance:** anonymous `GET /api/learn/next` and `POST /api/learn/progress`
-   are 401; the anonymous reader DOM is byte-identical to pre-G4; `/api/published*` responses
-   are byte-identical.
+   are 401; the anonymous reader's frozen adaptive-testid baseline (no new testids, no
+   `nextRequest` call — see `adaptive.test.tsx`) is unchanged from pre-G4; `/api/published*`
+   responses are pinned byte-for-byte across a full mark-done loop (`test_g4_golden.py`).
 4. **Empty-world validity:** fresh empty `pratham.db` + no `published/` + no
    `concept_graph.db` → every new endpoint returns clean JSON (or 401/404 as specified),
    never 500; the reader renders without crash.
@@ -175,6 +178,17 @@ pre-G4 (a regression test freezes the anonymous testid set BEFORE any new JSX la
   non-spoofable key, unlike login's Cf-Connecting-Ip) — an honest improvement over the login
   limiter's documented weakness.
 - **No new secrets, no LLM, no network egress.**
+- **Accepted risk — unthrottled validation path:** the 400/404 validation branches of
+  `POST /api/learn/progress` and the manifest read inside `GET /api/learn/next` are
+  unthrottled and re-read the published manifest per request. Accepted: both are
+  authenticated-only (an owner-controlled, enrolled roster, not the open internet), and this
+  is the same uncached manifest scan the pre-existing public `GET /api/published` already
+  performs on every request.
+- **Accepted risk — manifest-check→write TOCTOU:** a race between the `(chapter, lane)`
+  manifest-membership check and the `store.mark_progress` write, against a concurrent
+  `unpublish`, is accepted. A row surviving past an unpublish is inert — it is never used for
+  artifact resolution (that always re-resolves through the live manifest), so the worst case
+  is a harmless done-mark for content that is no longer listed.
 
 ## §9 Invariants — proposed DEC-13
 
