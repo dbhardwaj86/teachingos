@@ -11,7 +11,7 @@ import sqlite3
 
 from .. import config
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
 DDL = """
 CREATE TABLE IF NOT EXISTS students (
@@ -30,6 +30,15 @@ CREATE TABLE IF NOT EXISTS sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_students_code_hash ON students(code_hash);
 CREATE INDEX IF NOT EXISTS idx_sessions_student ON sessions(student_id);
+CREATE TABLE IF NOT EXISTS progress (
+  student_id TEXT NOT NULL,
+  chapter    TEXT NOT NULL,
+  lane       TEXT NOT NULL,
+  status     TEXT NOT NULL DEFAULT 'done',
+  marked_at  TEXT NOT NULL,
+  PRIMARY KEY (student_id, chapter, lane)
+);
+CREATE INDEX IF NOT EXISTS idx_progress_student ON progress(student_id);
 """
 
 # Memoize schema init once per DB path (re-inits if the file was deleted), mirroring
@@ -133,3 +142,20 @@ def delete_session(id_hash: str) -> None:
 
 def delete_sessions_for_student(student_id: str) -> None:
     _exec("DELETE FROM sessions WHERE student_id = ?", (student_id,))
+
+
+# --- progress (G4) ----------------------------------------------------
+def mark_progress(student_id: str, chapter: str, lane: str, marked_at: str) -> None:
+    """Idempotent 'done' upsert — the PK makes a re-mark update marked_at, never
+    duplicate. v1 only ever writes status='done' (the column is the F-G4-3
+    escape hatch: a future 'again' is a value, not a migration)."""
+    _exec("INSERT INTO progress (student_id, chapter, lane, status, marked_at) "
+          "VALUES (?, ?, ?, 'done', ?) "
+          "ON CONFLICT(student_id, chapter, lane) "
+          "DO UPDATE SET status = 'done', marked_at = excluded.marked_at",
+          (student_id, chapter, lane, marked_at))
+
+
+def list_progress(student_id: str) -> list[dict]:
+    return _query_all("SELECT * FROM progress WHERE student_id = ? ORDER BY chapter, lane",
+                      (student_id,))
