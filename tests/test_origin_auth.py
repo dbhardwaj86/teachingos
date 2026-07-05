@@ -258,3 +258,16 @@ def test_jwt_config_present_ignores_spoofable_email_header(gate_on, rsa_key):
     r = c.post("/api/munshi/capture", json={"kind": "todo"},
                headers={"Cf-Access-Authenticated-User-Email": "owner@example.com"})
     assert r.status_code == 403
+
+
+# --- G5: the factory-run HTTP recipe (plan/approve-seed/build) ----------
+def test_factory_run_endpoints_are_in_protected_posts():
+    assert origin_auth.is_protected("POST", "/api/factory/plan") is True
+    assert origin_auth.is_protected("POST", "/api/factory/approve-seed") is True
+    assert origin_auth.is_protected("POST", "/api/factory/build") is True
+
+
+def test_protected_posts_count_is_nine():
+    # Documents the growth 6 -> 9 this slice makes (spec §4); a future slice bumping
+    # this further should update the count deliberately, not by accident.
+    assert len(origin_auth._PROTECTED_POSTS) == 9

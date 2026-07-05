@@ -43,6 +43,12 @@ _PROTECTED_POSTS = frozenset({
     # G3: the owner publish write path — the GUI/network sibling of the G1 CLI
     # publish. Owner-gated (never-automated); delegates to the reviewed publish.run.
     "/api/factory/publish", "/api/factory/unpublish",
+    # G5: the owner factory-run write path (plan/approve-seed/build over HTTP) —
+    # the GUI/network sibling of `samagra factory plan|approve-seed|build`. Each is
+    # a thin delegate to the already-reviewed samagra/factory/run.py; build()
+    # structurally refuses the llm/mcd lane kinds (see api_factory_build). Owner-
+    # gated; never-automated (each gate is its own explicit owner click, F-G5-2).
+    "/api/factory/plan", "/api/factory/approve-seed", "/api/factory/build",
 })
 # review 27 MED-3: /api/search and /api/assignments serve the CACHED equivalents of
 # the admin-keyed live reads (munshi payloads via the catalog; governance proposal

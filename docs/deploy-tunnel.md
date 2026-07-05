@@ -17,13 +17,17 @@ sidecar on `:8783` stays internal and is reached via the same-origin
 
 > ⚠️ **Access before exposure (hard rule).** Never `cloudflared tunnel run` this
 > hostname before its Cloudflare Access application exists and is verified. The
-> origin exposes **seven mutating POSTs** that must never be reachable
+> origin exposes **ten mutating POSTs** that must never be reachable
 > unauthenticated:
 > `POST /api/refresh`, `POST /api/tick`, **`POST /api/gate/{pipeline}/{decision}`
 > (advances the human publish gate — `…/textbook/approve`)**,
-> `POST /api/munshi/capture`, `POST /api/mcd/seeds`, and (since Phase G3)
+> `POST /api/munshi/capture`, `POST /api/mcd/seeds`, (since Phase G3)
 > **`POST /api/factory/publish`**, **`POST /api/factory/unpublish`** (the outward
-> publish gate's HTTP trigger) — plus the four protected GETs
+> publish gate's HTTP trigger), and (since Phase G5) **`POST /api/factory/plan`**,
+> **`POST /api/factory/approve-seed`**, **`POST /api/factory/build`** (the factory-run
+> recipe's HTTP trigger; `build` additionally refuses the llm/mcd lane kinds with a
+> structural 403 before any factory code runs — the one production-write path, the
+> mcd `seed` lane, keeps zero HTTP triggers) — plus the four protected GETs
 > (`GET /api/munshi/library`, `GET /api/mcd/seeds`, `GET /api/search`,
 > `GET /api/assignments`). The authoritative list is
 > `_PROTECTED_POSTS`/`_PROTECTED_GETS` in `samagra/api/origin_auth.py` — keep this
