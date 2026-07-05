@@ -5,6 +5,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { Student } from "../../types/contracts";
 import { loginRequest, logoutRequest, meRequest } from "../../lib/pratham/session";
+import { markDoneRequest, nextRequest, type NextResponse } from "../../lib/pratham/plan";
 import { useApi } from "../../hooks/useApi";
 import {
   artifactUrl, chaptersList, fileExts, laneLabel, laneSort, pickChapter, pickLane,
@@ -65,6 +66,25 @@ export default function Pratham() {
   const lane = pickLane(lanes, sel.lane);
   const artifact = chapter?.artifacts.find((a) => a.lane === lane);
   const hasDocx = fileExts(artifact).includes("docx");
+
+  // G4: the adaptive plan — fetched ONLY for a signed-in student (F-G4-4). An
+  // anonymous reader never calls /api/learn/next and renders zero adaptive UI.
+  const [plan, setPlan] = useState<NextResponse | null>(null);
+  useEffect(() => {
+    if (!student) { setPlan(null); return; }
+    let alive = true;
+    nextRequest().then((p) => { if (alive) setPlan(p); });
+    return () => { alive = false; };
+  }, [student]);
+
+  async function markDone() {
+    if (!chapter || !lane) return;
+    if (await markDoneRequest(chapter.chapter, lane)) {
+      const p = await nextRequest();          // refetch: the loop closes here
+      setPlan(p);
+    }
+  }
+  const doneSet = new Set((plan?.done ?? []).map((d) => `${d.chapter}:${d.lane}`));
 
   // MVP nav: pushState keeps the URL shareable/deep-linkable, but we deliberately
   // do NOT add a popstate listener (back/forward won't re-sync selection) — a known
@@ -180,6 +200,21 @@ export default function Pratham() {
                   </button>
                 );
               })}
+              {student && chapter && lane ? (
+                doneSet.has(`${chapter.chapter}:${lane}`) ? (
+                  <span data-testid="pratham-done-badge"
+                    style={{ fontSize: 13, color: "#15803d", fontWeight: 600 }}>
+                    Done
+                  </span>
+                ) : (
+                  <button data-testid="pratham-mark-done" onClick={markDone}
+                    style={{ border: `1px solid ${C.line}`, background: C.card,
+                      color: C.text, font: "inherit", padding: "6px 12px",
+                      borderRadius: 999, cursor: "pointer" }}>
+                    Mark done
+                  </button>
+                )
+              ) : null}
               {hasDocx && chapter && lane ? (
                 <a data-testid="pratham-docx"
                   href={artifactUrl(chapter.chapter, lane, "docx")}
@@ -188,6 +223,25 @@ export default function Pratham() {
                 </a>
               ) : null}
             </div>
+            {student && plan && plan.queue.length > 0 ? (
+              <div data-testid="pratham-next" style={{
+                display: "flex", gap: 6, padding: "8px 14px", flexWrap: "wrap",
+                alignItems: "center", borderBottom: `1px solid ${C.line}`,
+                fontSize: 13,
+              }}>
+                <span style={{ color: C.muted }}>What's next:</span>
+                {plan.queue.slice(0, 5).map((g) => (
+                  <button key={`${g.chapter}:${g.lane}`}
+                    data-testid={`pratham-next-${g.chapter}-${g.lane}`}
+                    onClick={() => go(g.chapter, g.lane)} title={g.reason}
+                    style={{ border: `1px solid ${C.line}`, background: C.card,
+                      color: C.text, font: "inherit", padding: "4px 10px",
+                      borderRadius: 999, cursor: "pointer" }}>
+                    {g.title} · {laneLabel(g.lane).name}
+                  </button>
+                ))}
+              </div>
+            ) : null}
             {chapter && lane ? (
               <iframe data-testid="pratham-frame"
                 title={`${chapter.title ?? chapter.chapter} — ${laneLabel(lane).name}`}

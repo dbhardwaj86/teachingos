@@ -31,6 +31,7 @@ export interface PublishedManifest {
 }
 
 // Saar-led canonical lane order; unknown lanes sort after, alphabetically.
+// Mirrored in samagra/factory/coverage/next_best.py (_LANE_PRIORITY) — keep in sync.
 export const LANE_ORDER = ["revision", "lecture", "deck", "paper", "drill", "samadhan"];
 
 const LANE_LABELS: Record<string, { name: string; gloss: string }> = {
