@@ -365,6 +365,18 @@ def api_learn_progress(payload: dict, request: Request):
     return {"ok": True}
 
 
+@app.get("/api/learn/next")
+def api_learn_next(request: Request):
+    # G4: the deterministic what's-next queue — session-gated (F-G4-4: adaptivity is
+    # the reward for signing in; anonymous /learn stays byte-identical). Read-only.
+    from ..pratham import service
+    from . import learn_next
+    student = service.current_student(request.cookies.get(_PRATHAM_COOKIE))
+    if student is None:
+        raise HTTPException(401, "sign in required")
+    return learn_next.next_payload(student["id"])
+
+
 @app.post("/api/refresh")
 def api_refresh():
     totals = catalog.refresh(verbose=False)
