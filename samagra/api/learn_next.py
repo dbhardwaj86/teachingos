@@ -6,6 +6,8 @@ I/O. concept_graph.db is opened strictly via the existing read-only connect_ro; 
 absent/unbuilt graph degrades to an unranked queue (score 0), never an error."""
 from __future__ import annotations
 
+import sqlite3
+
 from ..factory.coverage import next_best
 from ..factory.coverage import store as coverage_store
 from ..factory.publish import read
@@ -23,6 +25,8 @@ def _published_inventory() -> list[dict]:
 
 
 def _chapter_demand() -> dict[str, int]:
+    # Absent OR corrupt/mid-rebuild graph degrades to an unranked queue (score 0) —
+    # the ranker treats {} as "no demand data"; never a 500 on the student surface.
     try:
         conn = coverage_store.connect_ro()
     except FileNotFoundError:
@@ -33,6 +37,8 @@ def _chapter_demand() -> dict[str, int]:
             "FROM concept_chapter cc JOIN concept c ON c.concept_id = cc.concept_id "
             "GROUP BY cc.chapter_slug").fetchall()
         return {r["slug"]: int(r["demand"] or 0) for r in rows}
+    except sqlite3.Error:
+        return {}
     finally:
         conn.close()
 

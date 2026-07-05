@@ -41,3 +41,12 @@ def test_built_graph_scores_and_done_subtracts(monkeypatch, tmp_path):
     assert p["queue"][0]["chapter"] == "gravitation"             # demand-ranked first
     assert p["queue"][0]["score"] == 700
     assert p["done"][0]["chapter"] == "circular-motion"          # done rides along
+
+
+def test_corrupt_concept_graph_degrades_to_unranked(monkeypatch, tmp_path):
+    monkeypatch.setattr(read, "published_manifest", lambda: _MAN)
+    bad = tmp_path / "corrupt.db"
+    bad.write_bytes(b"this is not a sqlite database")
+    monkeypatch.setattr(config, "CONCEPT_GRAPH_DB", bad, raising=False)
+    p = learn_next.next_payload("stu_a")
+    assert len(p["queue"]) == 3 and all(g["score"] == 0 for g in p["queue"])
