@@ -1,8 +1,8 @@
 # SAMAGRA Content Factory — Phase G4: the adaptive student twin (v1) — Design
 
-**Status:** PROPOSED (forks ruled by a 3-design × adversarial-judge deliberation, workflow
-run `wf_df1f8da3-4d4`, 2026-07-05 — every ruling below is reversible by Chairman veto before
-or during implementation).
+**Status:** RATIFIED 2026-07-05 by the Chairman ("go for G4"). Forks as ruled by the
+3-design × adversarial-judge deliberation (workflow run `wf_df1f8da3-4d4`); the Chairman may
+still veto any individual ruling during implementation.
 **Author:** Claude (Fable 5), synthesizing the judge directive.
 **Depends on:** G1 published corpus (`published/` + manifest) · G2 `/learn` reader ·
 G3 identity (`pratham.db` students/sessions, session cookie) · Phase E coverage graph
