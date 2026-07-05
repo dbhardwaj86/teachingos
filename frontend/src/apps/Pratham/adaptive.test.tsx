@@ -22,9 +22,10 @@ vi.mock("../../hooks/useApi", () => ({
 const me = vi.fn();
 const next = vi.fn();
 const markDone = vi.fn();
+const login = vi.fn();
 vi.mock("../../lib/pratham/session", () => ({
   meRequest: (...a: unknown[]) => me(...a),
-  loginRequest: vi.fn(),
+  loginRequest: (...a: unknown[]) => login(...a),
   logoutRequest: vi.fn(),
 }));
 vi.mock("../../lib/pratham/plan", () => ({
@@ -83,5 +84,29 @@ describe("signed-in adaptive UI (G4)", () => {
     render(<Pratham />);
     expect(await screen.findByTestId("pratham-done-badge")).toBeTruthy();
     expect(screen.queryByTestId("pratham-mark-done")).toBeNull();
+  });
+
+  it("drops a mark-done refetch that resolves after sign-out (no stale plan bleed)", async () => {
+    me.mockResolvedValue({ id: "stu_1", name: "Asha" });
+    let resolveRefetch!: (v: unknown) => void;
+    next
+      .mockResolvedValueOnce(PAYLOAD)                                   // A's initial fetch
+      .mockImplementationOnce(() => new Promise((r) => { resolveRefetch = r; }))  // A's refetch hangs
+      .mockResolvedValueOnce({ queue: [], done: [] });                  // B's fresh (empty) fetch
+    markDone.mockResolvedValue(true);
+    login.mockResolvedValue({ student: { id: "stu_2", name: "Bina" } });
+    render(<Pratham />);
+    (await screen.findByTestId("pratham-mark-done")).click();
+    await waitFor(() => expect(markDone).toHaveBeenCalled());
+    (await screen.findByTestId("pratham-signout")).click();             // A signs out mid-refetch
+    await waitFor(() => expect(screen.queryByTestId("pratham-next")).toBeNull());
+    (await screen.findByTestId("pratham-signin")).click();
+    (await screen.findByTestId("pratham-signin-input")).focus();
+    (await screen.findByTestId("pratham-signin-submit")).click();       // B signs in, empty queue
+    await waitFor(() => expect(screen.queryByTestId("pratham-user")?.textContent)
+      .toContain("Bina"));
+    resolveRefetch(PAYLOAD);                                            // A's late response lands
+    await new Promise((r) => setTimeout(r, 0));
+    expect(screen.queryByTestId("pratham-next")).toBeNull();            // must NOT bleed into B
   });
 });

@@ -69,19 +69,26 @@ export default function Pratham() {
 
   // G4: the adaptive plan — fetched ONLY for a signed-in student (F-G4-4). An
   // anonymous reader never calls /api/learn/next and renders zero adaptive UI.
+  // A generation counter guards against a late-resolving fetch (e.g. markDone's
+  // refetch racing a sign-out/sign-in) repopulating the plan for a DIFFERENT
+  // student on the same device — see review finding on stale plan bleed.
   const [plan, setPlan] = useState<NextResponse | null>(null);
+  const planGen = useRef(0);
   useEffect(() => {
+    planGen.current += 1;               // invalidate any in-flight plan fetch
     if (!student) { setPlan(null); return; }
+    const gen = planGen.current;
     let alive = true;
-    nextRequest().then((p) => { if (alive) setPlan(p); });
+    nextRequest().then((p) => { if (alive && planGen.current === gen) setPlan(p); });
     return () => { alive = false; };
   }, [student]);
 
   async function markDone() {
     if (!chapter || !lane) return;
+    const gen = planGen.current;
     if (await markDoneRequest(chapter.chapter, lane)) {
       const p = await nextRequest();          // refetch: the loop closes here
-      setPlan(p);
+      if (planGen.current === gen) setPlan(p);   // stale after sign-out/in — drop
     }
   }
   const doneSet = new Set((plan?.done ?? []).map((d) => `${d.chapter}:${d.lane}`));
