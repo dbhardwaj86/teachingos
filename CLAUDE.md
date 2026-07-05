@@ -392,11 +392,52 @@
 > plan `docs/superpowers/plans/2026-06-28-samagra-content-factory-phase-g3-identity-and-publish-write.md`; review
 > `docs/codex-reviews/28`.
 >
-> **NEXT: Phase G3 is COMPLETE — the PRATHAM arc is now G1 (publish) + G2 (read) + G3 (identity), leaving G4.
-> Phase G4 (the adaptive student twin — per-student selection over the Phase-E coverage graph, progress tracking)
-> is the next phase being planned in detail per DEC-9's ratified ordering (Phase G before Phase F); Phase F (the
-> heavy async LLM lanes — NotebookLM audio/slides, image-gen figures, Tier-2/3 coverage edges) follows after G4.**
-> The `/learn` public exposure remains a separate owner deploy step. **DEC-8 invariants unchanged.**
+> **✅ PHASE G4 (the ADAPTIVE STUDENT TWIN, v1) CODE COMPLETE on branch `feature/content-factory-phase-g4`, built
+> subagent-driven TDD (13-task plan, Tasks 0–11 done, each spec+quality double-reviewed) 2026-07-05.** G4 closes the
+> PRATHAM arc's last deferred piece — per-student progress tracking + a deterministic "what's next" queue over the
+> Phase-E coverage graph. **(a) Progress:** an additive `progress` table in `pratham.db` (`SCHEMA_VERSION` 1→2; PK
+> `(student_id,chapter,lane)`; idempotent upsert; a real v1→v2 db upgrade proven) + `service.mark_done` (a
+> **60/min rate limiter keyed on the authenticated `student_id`**) + `progress_for`. **(b) Ranker:** a PURE
+> deterministic `samagra/factory/coverage/next_best.rank_next` — demand × published minus done, Saar-led lane
+> priority mirroring the frontend's `LANE_ORDER`, `_QUEUE_SIZE=8`. **(c) Glue:** `samagra/api/learn_next.py` — the
+> ONE module joining pratham × factory (published manifest × concept-graph demand via `connect_ro` × the student's
+> done-set), graceful-empty and graceful on a **corrupt** `concept_graph.db` too (a quality-review catch: `build.py`
+> writes non-atomically, so a killed rebuild can leave a corrupt db — now caught via `sqlite3.Error`). **(d) Two new
+> endpoints:** **`POST /api/learn/progress`** — SAMAGRA's **FIRST authenticated student write** (session-cookie-only
+> identity ⇒ structural IDOR prevention, no student id ever accepted from the client; 400 validation; 404-before-write
+> against the LIVE published manifest; 429 rate-limit; idempotent `{"ok": true}`; deliberately public-prefix —
+> session-gated, NOT origin-gated) and **`GET /api/learn/next`** — the session-gated deterministic queue (F-G4-4:
+> adaptivity is a reward for signing in). **(e) Frontend:** `/learn` reader gains a student-gated "Mark done" button
+> + Done badge + a top-5 "What's next" deep-link strip; the anonymous-invariance baseline was frozen in its own
+> commit BEFORE any adaptive JSX landed (spec §11 discipline). **Golden threads** (`tests/test_g4_golden.py`) prove
+> the adaptive loop end-to-end AND that the durable `governance.db` stays BYTE-unchanged through the whole loop,
+> anonymous requests get clean 401s, and `/api/published` is untouched. **Proposed DEC-13** (pending ratification):
+> (1) all student writes touch ONLY `pratham.db`, `samagra/pratham/` imports no factory/governance module; (2)
+> student identity is server-derived only — no student id parameter anywhere under `/api/learn/*`, ever; (3)
+> progress rows only reference published content — the 404-before-write manifest gate is load-bearing; (4) the
+> recommender is Tier-1 deterministic (no LLM/network/key) — any future LLM recommender is a distinct
+> phase+decision+review, never a silent upgrade; (5) the v1 progress write's CSRF acceptance is scoped narrowly
+> (own-data, no escalation; `SameSite=Lax` + cookie `path=/api/learn`) — any new `/api/learn/*` write re-opens it;
+> (6) anonymous `/learn` stays byte-identical, `/api/published*` untouched, the publish gate + inward `build()` + 5
+> guards + the 7 subsystems + `governance.db` (no migration/table/state-machine change) all untouched. **Gate: 637
+> pytest** (1 skip = opt-in live-LLM smoke; 0 failures; up from the G3 baseline of 608) **+ 612 vitest** (74 files;
+> up from 604); `tsc --noEmit` + `npm run build` green. **REMAINING BEFORE MERGE (Task 13, NOT yet done):** a
+> dedicated Codex pre-merge review of the student write boundary (→ `docs/codex-reviews/29`) + a 4-lens adversarial
+> final review → remediate → `merge --ff-only` → push. Spec
+> `docs/superpowers/specs/2026-07-05-samagra-content-factory-phase-g4-adaptive-twin-design.md`; plan
+> `docs/superpowers/plans/2026-07-05-samagra-content-factory-phase-g4-adaptive-twin.md`. ⚠ **OWNER:** queue size
+> (`_QUEUE_SIZE=8`) + the rate limit (60/min) are code constants, tunable later; an operator progress view is
+> deferred (spec §12); `/learn` public exposure is still the separate owner deploy step; the first live throughput
+> run is still pending (stores are still empty); the samagra server needs a restart post-merge before
+> `/api/learn/next` exists live.
+>
+> **NEXT: Phase G4 is CODE COMPLETE, review gate PENDING.** Immediate next action = Task 13 (Codex pre-merge review
+> of the student write boundary + 4-lens adversarial final review, then merge to `main` + push). After that: the
+> first REAL live throughput run (`factory plan textbook:<slug>` → `approve-seed` → `build` → `publish` → verify at
+> `/learn` with a real signed-in student exercising mark-done + what's-next). Phase F (the heavy async LLM lanes —
+> NotebookLM audio/slides, image-gen figures, Tier-2/3 coverage edges) follows after G4 fully lands, per DEC-9's
+> ratified ordering. The `/learn` public exposure remains a separate owner deploy step. **DEC-8 invariants
+> unchanged.**
 >
 > **✅ Direction-coherence decision (ratified 2026-06-21 by Deepak; amended by DEC-6 on 2026-06-22):** a coherence
 > audit found execution solid but the strategic direction drifting — "SAMAGRA OS" had re-introduced the OS-sized
@@ -436,8 +477,11 @@
 
 <!-- scribe:begin v1 -->
 ## TeachingOS memory — auto-generated by scribe; edit OUTSIDE this block only
-_Updated 2026-07-04T18:14. Source: agent session distillation._
-- (5) 2026-07-02 claude: Decided to prioritize student-facing features over being just a content viewer. [Samagra, student-facing, product direction]
+_Updated 2026-07-05T13:44. Source: agent session distillation._
+- (5) 2026-07-05 claude: Closed phase G3 and produced detailed implementation plan for phase G4. [phase G3, phase G4, planning]
+- (5) 2026-07-04 codex: Phase G3 adds the system's first inbound HTTP write surfaces to SAMAGRA. [Phase G3, write surfaces, HTTP]
+- (5) 2026-07-02 claude: Samagra is currently perceived as merely a pretty window into other content, lacking standalone utility. [Samagra, TeachingOS]
+- (5) 2026-07-02 claude: The user prioritizes making Samagra a student-facing product or personal efficiency booster over adhering to existing project documentation. [Samagra, user requirements]
 - (5) 2026-06-28 claude: User approved design for Phase G3 of TeachingOS: multi-tenant student identity (PRATHAM) + POST /api/factory/publish write path. [design, G3, TeachingOS]
 - (5) 2026-06-28 claude: Project named TeachingOS is the focus of development. [project, TeachingOS]
 - (5) 2026-06-27 claude: User decided to execute Phase G (PRATHAM) before Phase F, reversing the earlier deferral per DEC-9. [TeachingOS, PRATHAM, Phase G, Phase F]
@@ -450,6 +494,7 @@ _Updated 2026-07-04T18:14. Source: agent session distillation._
 - (5) 2026-06-26 codex: LLM client calls in llm_client.py lack timeout handling; network failures cause indefinite hangs. [LLM client, timeout, network error]
 - (5) 2026-06-26 codex: Textbook subsystem violates read-only firewall by performing direct file writes instead of using sanctioned API endpoints. [write firewall, invariant violation]
 - (5) 2026-06-26 claude: Phase E of the SAMAGRA project is the coverage graph / Concept Atlas, the steering layer of the content factory. [Phase E, coverage graph, Concept Atlas, SAMAGRA]
+- (5) 2026-06-25 claude: Phase D2 Samadhan LLM lane routes reviewer-flagged or empty briefs to 'changes' instead of 'captured'. [SAMAGRA, content factory, Phase D2, Samadhan LLM, brief routing]
 - (5) 2026-06-25 claude: Phase D (StyleSeed, DEC-8) is the durable 'style moat' for the SAMAGRA content factory in the TeachingOS project. [StyleSeed, SAMAGRA, Phase D, DEC-8]
 - (5) 2026-06-24 claude: SAMAGRA (TeachingOS project) is implementing a content-factory pivot to generate multi-output physics content for JEE/NEET, moving beyond a read-only console. [SAMAGRA, TeachingOS, content factory, JEE/NEET physics]
 - (5) 2026-06-24 codex: Core logic matches design spec docs/superp; no fundamental issues. [design, validation]
@@ -466,11 +511,7 @@ _Updated 2026-07-04T18:14. Source: agent session distillation._
 - (5) 2026-06-21 claude: Scope firewall and attention-ROI gate were implemented to prevent scope creep and maintain focus. [scope firewall, attention-ROI gate, project management]
 - (5) 2026-06-21 claude: Phase E2 requires 11 data/control apps as thin React wrappers over the existing FastAPI /api/* contract plus one new endpoint GET /api/or. [SAMAGRA OS, Phase E2, React, FastAPI]
 - (5) 2026-06-21 claude: A bug exists: the Questions app displays simulation IDs instead of the question search interface; this will be addressed in a future session. [bug, sim IDs, question search]
+- (4) 2026-07-05 claude: Generated samagra_overhaul.html summarizing project status and plans. [TeachingOS, status report, HTML]
 - (5) 2026-06-20 claude: New design direction for TeachingOS based on 'Web OS GUI design.zip' is the immediate next priority. [design, priority, project]
-- (5) 2026-06-20 claude: All OS themes must include right-click functionality. [right-click, functionality, themes]
-- (5) 2026-06-20 claude: Windows in the OS must be draggable. [draggable, windows, UI]
-- (5) 2026-06-19 claude: Phase 0 executed: repo renamed from teachingos to samagra, Python package renamed, catalog rebuilt to 7,044 artifacts, 11/11 tests green, docs rebranded. [SAMAGRA, teachingos, rename, catalog, tests, docs]
-- (5) 2026-06-19 claude: Used a subagent team with a judge agent to debate the Samagra vision over two rounds. [subagent team, judge agent, deliberation]
-- (5) 2026-06-19 claude: Produced 10 concrete suggestions for improving the future vision direction based on the current intent. [suggestions, vision direction]
 Deep recall: C:\SandBox\claude_box\memboxes\scribe\bin\scribe.cmd q "<topic>"
 <!-- scribe:end -->

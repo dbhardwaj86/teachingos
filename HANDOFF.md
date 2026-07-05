@@ -1,5 +1,23 @@
 # SAMAGRA — Handoff
 
+> **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE G4 (the ADAPTIVE STUDENT TWIN, v1) CODE COMPLETE on branch `feature/content-factory-phase-g4`, built subagent-driven TDD (13-task plan, Tasks 0–11 done, each spec+quality double-reviewed), 2026-07-05. Review gate (Task 13) + merge to `main` are PENDING.**
+> G4 closes the PRATHAM arc's last deferred piece — per-student progress tracking + a deterministic "what's next" queue over the Phase-E coverage graph. Driven by the ratified DEC-9 ordering (Phase G before Phase F) continuing past G3.
+> - **(a) Progress store** — an additive `progress` table in `pratham.db` (`SCHEMA_VERSION` 1→2; PK `(student_id,chapter,lane)`; idempotent upsert; a real v1→v2 db upgrade proven) + `service.mark_done` (a `_PROGRESS_LIMITER` — 60/min keyed on the **authenticated `student_id`**) + `progress_for`.
+> - **(b) Ranker** — a new PURE `samagra/factory/coverage/next_best.rank_next`: demand × published minus done, Saar-led lane priority mirroring the frontend's `LANE_ORDER`, `_QUEUE_SIZE=8`, fully deterministic.
+> - **(c) Glue** — new `samagra/api/learn_next.py`, the ONE module joining pratham × factory: published manifest inventory × concept-graph demand (via `connect_ro`) × the signed-in student's done-set; graceful-empty, and graceful on a **corrupt** `concept_graph.db` too — a quality-review catch (`build.py` writes non-atomically, so a killed rebuild can leave a corrupt db) fixed by catching `sqlite3.Error`.
+> - **(d) Two new endpoints** — **`POST /api/learn/progress`**, SAMAGRA's **FIRST authenticated student write**: session-cookie-only identity (structural IDOR prevention — no student id ever accepted from path/query/body), 400 validation, 404-before-write against the LIVE published manifest, 429 rate-limit, idempotent `{"ok": true}`; deliberately public-prefix (session-gated, NOT origin-gated). **`GET /api/learn/next`** — the session-gated deterministic queue + done-set (F-G4-4: adaptivity is a reward for signing in).
+> - **(e) Frontend** — `lib/pratham/plan.ts` request wrappers (anonymous-safe null/false degrade); a student-gated "Mark done" button + Done badge + a top-5 "What's next" deep-link strip in the `/learn` reader. The **anonymous-invariance baseline was frozen in its own commit BEFORE any adaptive JSX landed** (spec §11 discipline) so byte-identical anonymous behavior is a pinned regression, not an afterthought.
+> - **Golden threads** (`tests/test_g4_golden.py`) prove the adaptive loop end-to-end AND that the durable `governance.db` stays **byte-unchanged** through the whole loop; anonymous requests get clean 401s; `/api/published` is untouched.
+> - **Reviews so far:** every task spec-reviewed (verbatim-vs-plan + independent test runs) + quality-reviewed; **1 Important finding total** (the corrupt-concept-graph-db degrade above) — fixed TDD, re-reviewed clean; all invariants held per-review.
+> - **Proposed DEC-13** (text below, pending ratification — this banner records it as **RATIFIED 2026-07-05** per the Chairman's go on this docs pass; see the decisions block).
+> - **Gate: 637 pytest** (1 skip = opt-in live-LLM smoke; 0 failures; up from the G3 baseline of 608) + **612 vitest** (74 files; up from 604); `tsc --noEmit` + `npm run build` green.
+> - **⚠ REMAINING BEFORE MERGE (Task 13, explicitly NOT done yet):** a dedicated Codex pre-merge review of the student write boundary (`POST /api/learn/progress` + store/service) and the session-gated read surface (→ `docs/codex-reviews/29`) + a 4-lens adversarial final review (firewall/store-isolation · security · spec-fidelity · identity-optional/separate-entity) → remediate any findings TDD → re-run the full gate → `merge --ff-only` to `main` → push.
+> - **⚠ Owner follow-ups:** (a) queue size (`_QUEUE_SIZE=8`) and the rate limit (60/min) are code constants, tunable later; (b) an operator progress view is deferred (spec §12); (c) `/learn` public exposure remains the separate owner deploy step (carried from G2/G3); (d) the first REAL live throughput run is still pending — the stores are still empty; (e) the samagra server needs a restart post-merge before `/api/learn/next` exists live.
+> - **Artifacts:** spec `docs/superpowers/specs/2026-07-05-samagra-content-factory-phase-g4-adaptive-twin-design.md`; plan `docs/superpowers/plans/2026-07-05-samagra-content-factory-phase-g4-adaptive-twin.md`; new code `samagra/factory/coverage/next_best.py`, `samagra/api/learn_next.py`, `samagra/pratham/{store,service}.py` (progress additions); tests `tests/test_pratham_progress_store.py`, `tests/test_pratham_progress_service.py`, `tests/test_next_best.py`, `tests/test_learn_next_glue.py`, `tests/test_api_learn_progress.py`, `tests/test_api_learn_next.py`, `tests/test_g4_golden.py`.
+> - **▶ NEXT: Task 13 — the review gate — then merge.** After merge: the first live throughput run (`factory plan textbook:<slug>` → `approve-seed` → `build` → `publish` → verify at `/learn` with a real signed-in student exercising mark-done + what's-next). **Phase F** (the heavy async LLM lanes) follows after G4 fully lands.
+>
+> ---
+>
 > **▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE G3 (multi-tenant PRATHAM identity + the outward publish write path — SAMAGRA's FIRST inbound HTTP writes) BUILT TDD + DEC-7 Codex pre-merge review + adversarial multi-lens final review + MERGED to `main` + PUSHED to `origin/main` 2026-07-05 (branch `feature/content-factory-phase-g3`) — durable.**
 > G3 opens two physically isolated write boundaries on top of G1/G2. Driven by the owner's continuation of the ratified DEC-9 ordering (Phase G before Phase F).
 > - **(a) Owner publish over HTTP** — `POST /api/factory/publish` + `POST /api/factory/unpublish`, added to `origin_auth._PROTECTED_POSTS` (now **7 protected POSTs + 4 protected GETs**), a **thin delegate to the already-reviewed G1 `publish.run`** — no new write mechanism, the never-automated publish gate simply gained a second owner trigger beside the CLI. Plus a minimal operator **Publish** GUI app — the console's **19th app**.
@@ -738,6 +756,16 @@ and live suites are **backend 106 pytest + frontend 501 vitest** green. **The dr
    `pratham.db`, the 7 read-only subsystems + the inward `build()` + its 5 crash guards untouched. (4)
    `pratham.db` is durable + gitignored; no `governance.db` migration, no new governance table, no
    assignment-state-machine change.
+10. **DEC-13 · G4 adaptive-twin invariants — RATIFIED 2026-07-05 (source: spec §9).** (1) ALL student writes touch
+    ONLY `pratham.db`; `samagra/pratham/` imports no factory/governance module (import hygiene = the firewall,
+    review-verified). (2) Student identity is **server-derived only** — no student id parameter in any
+    path/query/body under `/api/learn/*`, ever. (3) Progress rows only reference **published** content — the
+    404-before-write manifest gate is load-bearing. (4) The recommender is **Tier-1 deterministic** (no
+    LLM/network/key); any future LLM recommender is a distinct phase + decision + review, never a silent upgrade.
+    (5) CSRF acceptance is scoped to the v1 progress write (own-data, no escalation; `SameSite=Lax` + cookie
+    `path=/api/learn`); any new `/api/learn/*` write re-opens it. (6) Anonymous `/learn` stays byte-identical;
+    `/api/published*` untouched; the publish gate, the inward `build()` + its 5 guards, the 7 source subsystems,
+    and `governance.db` (no migration/table/state-machine change) all untouched.
 
 This decision is recorded across STATUS.html (*Direction coherence*), SUMMARY.html, both specs and CLAUDE.md, so
 it travels with the project. Reviews that informed it: `docs/superpowers/_research/samagra-os/_vision-review-output.md`.

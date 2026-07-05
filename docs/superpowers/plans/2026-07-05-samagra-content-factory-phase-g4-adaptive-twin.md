@@ -1,4 +1,4 @@
-# SAMAGRA Content Factory — Phase G4 (adaptive student twin, v1) Implementation Plan
+﻿# SAMAGRA Content Factory — Phase G4 (adaptive student twin, v1) Implementation Plan
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -41,13 +41,13 @@
 
 ### Task 0: Branch
 
-- [ ] **Step 1: Create the branch**
+- [x] **Step 1: Create the branch**
 
 ```bash
 git checkout main && git pull && git checkout -b feature/content-factory-phase-g4
 ```
 
-- [ ] **Step 2: Commit the spec + this plan** (if not already committed)
+- [x] **Step 2: Commit the spec + this plan** (if not already committed)
 
 ```bash
 git add docs/superpowers/specs/2026-07-05-samagra-content-factory-phase-g4-adaptive-twin-design.md docs/superpowers/plans/2026-07-05-samagra-content-factory-phase-g4-adaptive-twin.md
@@ -62,7 +62,7 @@ git commit -m "docs(g4): Phase G4 adaptive-twin design (proposed) + implementati
 - Modify: `samagra/pratham/store.py` (DDL at ~line 16, `SCHEMA_VERSION` at line 14, new functions after `delete_sessions_for_student`)
 - Test: `tests/test_pratham_progress_store.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_pratham_progress_store.py
@@ -124,12 +124,12 @@ def test_existing_v1_db_gains_progress_table_and_keeps_rows():
     con.close()
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `python -m pytest tests/test_pratham_progress_store.py -q`
 Expected: FAIL — `AttributeError: module ... has no attribute 'list_progress'`.
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 In `samagra/pratham/store.py`: change line 14 to `SCHEMA_VERSION = 2`; append to the `DDL` string (before the closing `"""`):
 
@@ -165,9 +165,9 @@ def list_progress(student_id: str) -> list[dict]:
                       (student_id,))
 ```
 
-- [ ] **Step 4: Run to verify pass** — `python -m pytest tests/test_pratham_progress_store.py -q` → 4 passed. Also run `python -m pytest tests/test_pratham_store.py tests/test_pratham_service.py -q` to prove G3 store behavior is untouched.
+- [x] **Step 4: Run to verify pass** — `python -m pytest tests/test_pratham_progress_store.py -q` → 4 passed. Also run `python -m pytest tests/test_pratham_store.py tests/test_pratham_service.py -q` to prove G3 store behavior is untouched.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add samagra/pratham/store.py tests/test_pratham_progress_store.py
@@ -182,7 +182,7 @@ git commit -m "feat(g4): progress table in pratham.db — additive schema v2 + i
 - Modify: `samagra/pratham/service.py` (after `revoke`), `tests/conftest.py` (~line 42)
 - Test: `tests/test_pratham_progress_service.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_pratham_progress_service.py
@@ -210,9 +210,9 @@ def test_progress_for_delegates_to_store():
     assert service.progress_for("stu_b") == []
 ```
 
-- [ ] **Step 2: Run to verify failure** — `python -m pytest tests/test_pratham_progress_service.py -q` → FAIL (`no attribute 'mark_done'`).
+- [x] **Step 2: Run to verify failure** — `python -m pytest tests/test_pratham_progress_service.py -q` → FAIL (`no attribute 'mark_done'`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `samagra/pratham/service.py`:
 
@@ -245,9 +245,9 @@ In `tests/conftest.py`, after `_pratham_service._LIMITER._hits.clear()` (line 42
         _pratham_service._PROGRESS_LIMITER._hits.clear()
 ```
 
-- [ ] **Step 4: Run to verify pass** — `python -m pytest tests/test_pratham_progress_service.py -q` → 3 passed.
+- [x] **Step 4: Run to verify pass** — `python -m pytest tests/test_pratham_progress_service.py -q` → 3 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add samagra/pratham/service.py tests/test_pratham_progress_service.py tests/conftest.py
@@ -262,7 +262,7 @@ git commit -m "feat(g4): service.mark_done — per-student rate-limited progress
 - Create: `samagra/factory/coverage/next_best.py`
 - Test: `tests/test_next_best.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_next_best.py
@@ -309,9 +309,9 @@ def test_deterministic():
     assert a == b
 ```
 
-- [ ] **Step 2: Run to verify failure** — `python -m pytest tests/test_next_best.py -q` → FAIL (`ModuleNotFoundError`).
+- [x] **Step 2: Run to verify failure** — `python -m pytest tests/test_next_best.py -q` → FAIL (`ModuleNotFoundError`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # samagra/factory/coverage/next_best.py
@@ -354,9 +354,9 @@ def rank_next(published: list[dict], chapter_demand: dict[str, int],
     return items
 ```
 
-- [ ] **Step 4: Run to verify pass** — `python -m pytest tests/test_next_best.py -q` → 6 passed.
+- [x] **Step 4: Run to verify pass** — `python -m pytest tests/test_next_best.py -q` → 6 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add samagra/factory/coverage/next_best.py tests/test_next_best.py
@@ -371,7 +371,7 @@ git commit -m "feat(g4): pure deterministic what's-next ranker (demand x publish
 - Create: `samagra/api/learn_next.py`
 - Test: `tests/test_learn_next_glue.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_learn_next_glue.py
@@ -420,9 +420,9 @@ def test_built_graph_scores_and_done_subtracts(monkeypatch, tmp_path):
     assert p["done"][0]["chapter"] == "circular-motion"          # done rides along
 ```
 
-- [ ] **Step 2: Run to verify failure** — `python -m pytest tests/test_learn_next_glue.py -q` → FAIL (`ModuleNotFoundError`).
+- [x] **Step 2: Run to verify failure** — `python -m pytest tests/test_learn_next_glue.py -q` → FAIL (`ModuleNotFoundError`).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```python
 # samagra/api/learn_next.py
@@ -477,9 +477,9 @@ def next_payload(student_id: str) -> dict:
 > called with no argument — verify this against `samagra/factory/coverage/store.py:53`
 > (it does: `path = Path(db_path) if db_path is not None else config.CONCEPT_GRAPH_DB`).
 
-- [ ] **Step 4: Run to verify pass** — `python -m pytest tests/test_learn_next_glue.py -q` → 3 passed.
+- [x] **Step 4: Run to verify pass** — `python -m pytest tests/test_learn_next_glue.py -q` → 3 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add samagra/api/learn_next.py tests/test_learn_next_glue.py
@@ -494,7 +494,7 @@ git commit -m "feat(g4): learn_next glue — manifest x demand x done-set, grace
 - Modify: `samagra/api/app.py` (append to the G3 `/api/learn/*` block, after `api_learn_me` ~line 334)
 - Test: `tests/test_api_learn_progress.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_api_learn_progress.py
@@ -565,9 +565,9 @@ def test_rate_limited_is_429(monkeypatch):
     assert c.post("/api/learn/progress", json=body).status_code == 429
 ```
 
-- [ ] **Step 2: Run to verify failure** — `python -m pytest tests/test_api_learn_progress.py -q` → FAIL (405/404: route absent).
+- [x] **Step 2: Run to verify failure** — `python -m pytest tests/test_api_learn_progress.py -q` → FAIL (405/404: route absent).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 Append to `samagra/api/app.py` after `api_learn_me` (keep the G3 block comment style):
 
@@ -600,9 +600,9 @@ def api_learn_progress(payload: dict, request: Request):
     return {"ok": True}
 ```
 
-- [ ] **Step 4: Run to verify pass** — `python -m pytest tests/test_api_learn_progress.py -q` → 6 passed. Also `python -m pytest tests/test_api_learn.py -q` (G3 endpoints untouched).
+- [x] **Step 4: Run to verify pass** — `python -m pytest tests/test_api_learn_progress.py -q` → 6 passed. Also `python -m pytest tests/test_api_learn.py -q` (G3 endpoints untouched).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add samagra/api/app.py tests/test_api_learn_progress.py
@@ -617,7 +617,7 @@ git commit -m "feat(g4): POST /api/learn/progress — session-gated, 404-before-
 - Modify: `samagra/api/app.py` (directly after `api_learn_progress`)
 - Test: `tests/test_api_learn_next.py`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```python
 # tests/test_api_learn_next.py
@@ -657,9 +657,9 @@ def test_empty_world_is_valid_json(monkeypatch, tmp_path):
     assert r.status_code == 200 and r.json() == {"queue": [], "done": []}
 ```
 
-- [ ] **Step 2: Run to verify failure** — `python -m pytest tests/test_api_learn_next.py -q` → FAIL.
+- [x] **Step 2: Run to verify failure** — `python -m pytest tests/test_api_learn_next.py -q` → FAIL.
 
-- [ ] **Step 3: Implement** — append after `api_learn_progress`:
+- [x] **Step 3: Implement** — append after `api_learn_progress`:
 
 ```python
 @app.get("/api/learn/next")
@@ -674,9 +674,9 @@ def api_learn_next(request: Request):
     return learn_next.next_payload(student["id"])
 ```
 
-- [ ] **Step 4: Run to verify pass** — `python -m pytest tests/test_api_learn_next.py -q` → 3 passed.
+- [x] **Step 4: Run to verify pass** — `python -m pytest tests/test_api_learn_next.py -q` → 3 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add samagra/api/app.py tests/test_api_learn_next.py
@@ -690,7 +690,7 @@ git commit -m "feat(g4): GET /api/learn/next — session-gated deterministic que
 **Files:**
 - Test: `tests/test_g4_golden.py`
 
-- [ ] **Step 1: Write the failing tests** (thread 1 fails until Tasks 5–6 are merged in the worktree; if executing in order it passes immediately — still write it as its own file, it is the acceptance record)
+- [x] **Step 1: Write the failing tests** (thread 1 fails until Tasks 5–6 are merged in the worktree; if executing in order it passes immediately — still write it as its own file, it is the acceptance record)
 
 ```python
 # tests/test_g4_golden.py
@@ -750,9 +750,9 @@ def test_golden_anonymous_invariance(monkeypatch):
     assert c.get("/api/published").status_code == 200
 ```
 
-- [ ] **Step 2: Run** — `python -m pytest tests/test_g4_golden.py -q` → 2 passed (or fix forward).
+- [x] **Step 2: Run** — `python -m pytest tests/test_g4_golden.py -q` → 2 passed (or fix forward).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add tests/test_g4_golden.py
@@ -767,7 +767,7 @@ git commit -m "test(g4): golden threads — adaptive loop, governance byte-isola
 - Create: `frontend/src/lib/pratham/plan.ts`
 - Test: `frontend/src/lib/pratham/plan.test.ts`
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 ```ts
 // frontend/src/lib/pratham/plan.test.ts
@@ -815,9 +815,9 @@ describe("plan.ts wrappers (G4)", () => {
 });
 ```
 
-- [ ] **Step 2: Run to verify failure** — `cd frontend && npx vitest run src/lib/pratham/plan.test.ts` → FAIL (module missing).
+- [x] **Step 2: Run to verify failure** — `cd frontend && npx vitest run src/lib/pratham/plan.test.ts` → FAIL (module missing).
 
-- [ ] **Step 3: Implement**
+- [x] **Step 3: Implement**
 
 ```ts
 // frontend/src/lib/pratham/plan.ts
@@ -851,9 +851,9 @@ export async function markDoneRequest(chapter: string, lane: string): Promise<bo
 }
 ```
 
-- [ ] **Step 4: Run to verify pass** — `npx vitest run src/lib/pratham/plan.test.ts` → 4 passed.
+- [x] **Step 4: Run to verify pass** — `npx vitest run src/lib/pratham/plan.test.ts` → 4 passed.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add frontend/src/lib/pratham/plan.ts frontend/src/lib/pratham/plan.test.ts
@@ -867,7 +867,7 @@ git commit -m "feat(g4): frontend plan.ts wrappers for next/progress"
 **Files:**
 - Test: `frontend/src/apps/Pratham/adaptive.test.tsx`
 
-- [ ] **Step 1: Write the tests — they must PASS against the current (pre-G4-UI) reader, then keep passing forever**
+- [x] **Step 1: Write the tests — they must PASS against the current (pre-G4-UI) reader, then keep passing forever**
 
 ```tsx
 // frontend/src/apps/Pratham/adaptive.test.tsx
@@ -918,9 +918,9 @@ describe("anonymous invariance (G4)", () => {
 });
 ```
 
-- [ ] **Step 2: Run** — `npx vitest run src/apps/Pratham/adaptive.test.tsx` → 1 passed (it must be green BEFORE the UI task and stay green after — this is the frozen baseline).
+- [x] **Step 2: Run** — `npx vitest run src/apps/Pratham/adaptive.test.tsx` → 1 passed (it must be green BEFORE the UI task and stay green after — this is the frozen baseline).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/apps/Pratham/adaptive.test.tsx
@@ -934,7 +934,7 @@ git commit -m "test(g4): freeze anonymous-invariance baseline before any adaptiv
 **Files:**
 - Modify: `frontend/src/apps/Pratham/adaptive.test.tsx` (append a signed-in describe block)
 
-- [ ] **Step 1: Append the failing tests**
+- [x] **Step 1: Append the failing tests**
 
 ```tsx
 describe("signed-in adaptive UI (G4)", () => {
@@ -983,9 +983,9 @@ describe("signed-in adaptive UI (G4)", () => {
 `const markDone = vi.fn(); vi.mock("../../lib/pratham/plan", () => ({ nextRequest: (...a: unknown[]) => next(...a), markDoneRequest: (...a: unknown[]) => markDone(...a) }));`
 and assert on `markDone` — follow the same closure-safe pattern the file already uses for `me`/`next`.)
 
-- [ ] **Step 2: Run to verify failure** — `npx vitest run src/apps/Pratham/adaptive.test.tsx` → signed-in block FAILS (no such testids), anonymous block still PASSES.
+- [x] **Step 2: Run to verify failure** — `npx vitest run src/apps/Pratham/adaptive.test.tsx` → signed-in block FAILS (no such testids), anonymous block still PASSES.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/apps/Pratham/adaptive.test.tsx
@@ -999,7 +999,7 @@ git commit -m "test(g4): signed-in adaptive UI expectations (red)"
 **Files:**
 - Modify: `frontend/src/apps/Pratham/index.tsx`
 
-- [ ] **Step 1: Implement (drive tasks 9+10 green)**
+- [x] **Step 1: Implement (drive tasks 9+10 green)**
 
 (a) Imports (after the `session` import at line 7):
 
@@ -1080,9 +1080,9 @@ other effects is fine (it only closes over `student`).
             ) : null}
 ```
 
-- [ ] **Step 2: Run to verify pass** — `npx vitest run src/apps/Pratham/` → ALL green (including the pre-existing `index.test.tsx` + `signin.test.tsx` — anonymous behavior byte-identical). Then `npx tsc --noEmit`.
+- [x] **Step 2: Run to verify pass** — `npx vitest run src/apps/Pratham/` → ALL green (including the pre-existing `index.test.tsx` + `signin.test.tsx` — anonymous behavior byte-identical). Then `npx tsc --noEmit`.
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add frontend/src/apps/Pratham/index.tsx frontend/src/apps/Pratham/adaptive.test.tsx
@@ -1093,11 +1093,11 @@ git commit -m "feat(g4): student-gated Mark done + What's-next strip in the /lea
 
 ### Task 12: full verification gate + docs/trackers + DEC-13
 
-- [ ] **Step 1: Full backend suite** — `python -m pytest -q` — expected: baseline 608 + ~27 new, 1 skip, 0 failures.
-- [ ] **Step 2: Full frontend gate** — `cd frontend && npx vitest run && npx tsc --noEmit && npm run build` — expected: baseline 604 + ~8 new, tsc + build green.
-- [ ] **Step 3: Empty-world smoke** — with a scratch env (fresh `pratham.db`, no `published/`, no `concept_graph.db`): `python -m pytest tests/test_g4_golden.py tests/test_api_learn_next.py -q` (already parameterized to that world) plus a manual `curl -s localhost:8799/api/learn/next` → 401 (anon), never 500.
-- [ ] **Step 4: Update trackers** — CLAUDE.md G-status banner + HANDOFF.md (banner + append DEC-13 to the decisions block, text from spec §9) + STATUS.html + SUMMARY.html per the house prepend-banner convention; note the owner follow-ups (queue size/rate-limit tunables; the operator progress view deferred).
-- [ ] **Step 5: Commit** — `git add -A docs STATUS.html HANDOFF.md SUMMARY.html CLAUDE.md && git commit -m "docs(g4): status + trackers + DEC-13 for the adaptive-twin slice"`
+- [x] **Step 1: Full backend suite** — `python -m pytest -q` — expected: baseline 608 + ~27 new, 1 skip, 0 failures.
+- [x] **Step 2: Full frontend gate** — `cd frontend && npx vitest run && npx tsc --noEmit && npm run build` — expected: baseline 604 + ~8 new, tsc + build green.
+- [x] **Step 3: Empty-world smoke** — with a scratch env (fresh `pratham.db`, no `published/`, no `concept_graph.db`): `python -m pytest tests/test_g4_golden.py tests/test_api_learn_next.py -q` (already parameterized to that world) plus a manual `curl -s localhost:8799/api/learn/next` → 401 (anon), never 500.
+- [x] **Step 4: Update trackers** — CLAUDE.md G-status banner + HANDOFF.md (banner + append DEC-13 to the decisions block, text from spec §9) + STATUS.html + SUMMARY.html per the house prepend-banner convention; note the owner follow-ups (queue size/rate-limit tunables; the operator progress view deferred).
+- [x] **Step 5: Commit** — `git add -A docs STATUS.html HANDOFF.md SUMMARY.html CLAUDE.md && git commit -m "docs(g4): status + trackers + DEC-13 for the adaptive-twin slice"`
 
 ---
 
