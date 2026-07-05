@@ -30,6 +30,7 @@ def test_golden_adaptive_loop_and_isolation(monkeypatch, tmp_path):
     c = TestClient(api_app.app)
     code = service.enroll("Asha")["code"]
     assert c.post("/api/learn/login", json={"code": code}).status_code == 200
+    pub_before = c.get("/api/published").content
 
     q1 = c.get("/api/learn/next").json()
     assert ("circular-motion", "revision") in {(g["chapter"], g["lane"]) for g in q1["queue"]}
@@ -43,6 +44,9 @@ def test_golden_adaptive_loop_and_isolation(monkeypatch, tmp_path):
 
     # Write-path isolation: the whole loop left governance.db BYTE-unchanged.
     assert hashlib.sha256(_gov_bytes()).hexdigest() == gov_before
+
+    # The public read surface returned byte-identical content through the loop.
+    assert c.get("/api/published").content == pub_before
 
 
 def test_golden_anonymous_invariance(monkeypatch):

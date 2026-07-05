@@ -63,3 +63,15 @@ def test_rate_limited_is_429(monkeypatch):
     body = {"chapter": "circular-motion", "lane": "revision"}
     assert c.post("/api/learn/progress", json=body).status_code == 200
     assert c.post("/api/learn/progress", json=body).status_code == 429
+
+
+def test_extra_body_fields_are_ignored(monkeypatch):
+    # Server derives identity from the session; body ids/status can never spoof it.
+    c = _signed_in_client(monkeypatch)
+    body = {"chapter": "circular-motion", "lane": "revision",
+            "student_id": "stu_evil", "status": "again"}
+    assert c.post("/api/learn/progress", json=body).json() == {"ok": True}
+    sid = store.list_students()[0]["id"]
+    rows = store.list_progress(sid)
+    assert len(rows) == 1 and rows[0]["status"] == "done"
+    assert store.list_progress("stu_evil") == []
