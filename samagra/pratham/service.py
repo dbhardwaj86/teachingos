@@ -69,3 +69,25 @@ def revoke(student_id: str) -> None:
     """Owner action (CLI): revoke a student + invalidate ALL their sessions."""
     store.set_status(student_id, "revoked")
     store.delete_sessions_for_student(student_id)
+
+
+# G4: progress marks. Keyed on the AUTHENTICATED student_id (non-spoofable, unlike
+# login's Cf-Connecting-Ip key) — looser than login's limiter because marking is a
+# legitimate high-frequency study action; still bounds a buggy client.
+_PROGRESS_LIMITER = identity.RateLimiter(max_attempts=60, window_seconds=60)
+
+
+def mark_done(student_id: str, chapter: str, lane: str, *,
+              now_epoch: float | None = None) -> bool:
+    """Upsert a 'done' mark. False when rate-limited (no write). The (chapter, lane)
+    pair MUST already be validated against the live published manifest by the caller
+    (the API layer) — this module never imports factory code (the isolation firewall)."""
+    now_epoch = time.time() if now_epoch is None else now_epoch
+    if not _PROGRESS_LIMITER.allow(student_id, now_epoch):
+        return False
+    store.mark_progress(student_id, chapter, lane, identity.now_iso())
+    return True
+
+
+def progress_for(student_id: str) -> list[dict]:
+    return store.list_progress(student_id)

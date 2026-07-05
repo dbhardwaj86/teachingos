@@ -40,5 +40,6 @@ def isolate_data_db(monkeypatch, tmp_path):
         _pratham_store._INITIALIZED.clear()
         from samagra.pratham import service as _pratham_service
         _pratham_service._LIMITER._hits.clear()
+        _pratham_service._PROGRESS_LIMITER._hits.clear()
     except Exception:  # noqa: BLE001 — package may not exist mid-build
         pass
