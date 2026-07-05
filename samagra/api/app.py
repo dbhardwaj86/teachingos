@@ -337,6 +337,34 @@ def api_learn_me(request: Request):
     return {"student": service.current_student(request.cookies.get(_PRATHAM_COOKIE))}
 
 
+@app.post("/api/learn/progress")
+def api_learn_progress(payload: dict, request: Request):
+    # G4: the FIRST authenticated student write. Session-gated (NOT origin-gated);
+    # the student id comes ONLY from the session cookie — no id parameter exists
+    # anywhere on this surface (structural IDOR prevention, DEC-13). The write
+    # touches ONLY pratham.db via service/store.
+    from ..factory.publish import read
+    from ..pratham import service
+    student = service.current_student(request.cookies.get(_PRATHAM_COOKIE))
+    if student is None:
+        raise HTTPException(401, "sign in required")
+    chapter = (payload or {}).get("chapter")
+    lane = (payload or {}).get("lane")
+    if not isinstance(chapter, str) or not chapter.strip() \
+            or not isinstance(lane, str) or not lane.strip():
+        raise HTTPException(400, "chapter and lane required")
+    chapter, lane = chapter.strip(), lane.strip()
+    # 404-before-write (DEC-13): a progress row can never reference content that
+    # is not in the LIVE published manifest.
+    ch = (read.published_manifest() or {}).get("chapters", {}).get(chapter)
+    lanes = {a.get("lane") for a in (ch.get("artifacts") or [])} if ch else set()
+    if lane not in lanes:
+        raise HTTPException(404, "not published")
+    if not service.mark_done(student["id"], chapter, lane):
+        raise HTTPException(429, "slow down")
+    return {"ok": True}
+
+
 @app.post("/api/refresh")
 def api_refresh():
     totals = catalog.refresh(verbose=False)
