@@ -94,23 +94,28 @@ def test_concurrent_double_post_does_not_duplicate_rows(factory_env):
     # assignment_for` then `add_assignment` write) is not atomic — an unserialized
     # endpoint duplicated governance rows (reviewer observed 6-7 instead of 5).
     # Deliberately uses the REAL run.plan (no mock): the unmocked read-then-write
-    # window IS the hazard. Pre-fix failure is probabilistic, so the double-POST
-    # loops 5x — dedup must hold the row count at exactly 5 across ALL iterations.
+    # window IS the hazard. A single seed reused across iterations only exercises
+    # the race on iteration 1 — from iteration 2 onward `_existing_assignment_for`
+    # already finds committed rows, so the dedup path is structurally safe
+    # regardless of the lock (measured catch-rate ~40% if the lock were removed).
+    # Use a DISTINCT seed per iteration so every one of the 5 iterations hits the
+    # true first-plan race window; dedup must hold each seed's row count at
+    # exactly 5.
     from samagra.governance import store as gov
 
-    seed = "textbook:circular-motion"
     statuses: list[int] = []
-    for _ in range(5):
+    for i in range(5):
+        seed = f"textbook:seed-{i}"
         barrier = threading.Barrier(2)
         results: list[int | None] = [None, None]
 
-        def hit(i: int) -> None:
+        def hit(j: int) -> None:
             c = TestClient(api_app.app)          # one client per thread
             barrier.wait()                       # maximize the collision window
-            results[i] = c.post(
+            results[j] = c.post(
                 "/api/factory/plan", json={"seed_ref": seed}).status_code
 
-        threads = [threading.Thread(target=hit, args=(i,)) for i in range(2)]
+        threads = [threading.Thread(target=hit, args=(j,)) for j in range(2)]
         for t in threads:
             t.start()
         for t in threads:

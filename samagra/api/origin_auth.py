@@ -61,7 +61,8 @@ _PROTECTED_GETS = frozenset({
 
 
 def is_protected(method: str, path: str) -> bool:
-    """True for the five mutating POSTs + the admin-keyed live + cached reads."""
+    """True for the protected mutating POSTs (_PROTECTED_POSTS + the /api/gate/
+    pattern route) + the admin-keyed live + cached reads (_PROTECTED_GETS)."""
     method = (method or "").upper()
     if method == "POST":
         return path in _PROTECTED_POSTS or path.startswith("/api/gate/")
