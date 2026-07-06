@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import re
 
 from .. import config, questions_proxy
 from ..clients import QxClient
@@ -29,6 +30,30 @@ from . import chapter_map
 # A drill is a smaller, focused subset of the chapter's questions (the first N of
 # QX's stable exact-search order — deterministic, no LLM).
 _DRILL_SIZE = 8
+
+# combinedDBQues ships exact-dup detection (8,114 clusters) but its serve path
+# does NOT collapse them and /api/qsearch carries no cluster_hash — consumers
+# dedupe. Mirror their dupes.py normalization: strip tags, collapse whitespace,
+# lowercase. Projections under this length are generic ("short") text their own
+# threshold never treats as duplicates.
+_DEDUPE_MIN_CHARS = 40
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _dedupe_results(results: list[dict]) -> list[dict]:
+    """Drop rows whose normalized text projection was already seen. PURE,
+    deterministic, order-preserving; runs BEFORE the drill slice so a drill is
+    _DRILL_SIZE distinct questions."""
+    seen: set[str] = set()
+    out: list[dict] = []
+    for r in results:
+        proj = " ".join(_TAG_RE.sub(" ", r.get("html") or "").split()).lower()
+        if len(proj) >= _DEDUPE_MIN_CHARS:
+            if proj in seen:
+                continue
+            seen.add(proj)
+        out.append(r)
+    return out
 
 # Card/question layout + QX's standalone-math classes (.mwrap/.ktx/.eq-hidden) so
 # the KaTeX spans render and the hidden image fallback stays hidden until needed.
@@ -150,7 +175,7 @@ def build_paper(slug: str, *, variant: str) -> dict:
             f"Is combinedDBQues serving on :8790? (see its RUNBOOK; no artifact written)"
         ) from exc
 
-    results = list(payload.get("results") or [])
+    results = _dedupe_results(list(payload.get("results") or []))
     if variant == "drill":
         results = results[:_DRILL_SIZE]
     # Rewrite QX's relative /asset URLs (figures + equation-image fallbacks) to

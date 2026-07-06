@@ -194,3 +194,60 @@ def test_build_paper_result_is_json_serializable(export_dir, monkeypatch):
     res = paper.build_paper("circular-motion", variant="paper")
     json.dumps(res)   # build() json.dumps the result into the event note — must not raise
     assert all(isinstance(v, (str, int)) for v in res.values())
+
+
+_LONG_A = ('<div class="stem">A 100 N force is applied to the centre of a rope; '
+           'find the tension in the rope at its midpoint.</div>')
+_LONG_B = ('<div class="stem">A block slides down a frictionless incline of angle '
+           'thirty degrees; find its acceleration.</div>')
+
+
+class _DupQx(_FakeQx):
+    def search(self, **kw):
+        return {"results": [
+                    _q("q1", _LONG_A),
+                    _q("q2", _LONG_A),                                  # exact dup of q1
+                    _q("q3", '<div class="stem">  a 100 n force is applied to the '
+                             'centre of a rope; find the tension in the rope at its '
+                             'midpoint.  </div>'),                       # dup modulo ws/case
+                    _q("q4", _LONG_B),
+                    _q("q5", '<div class="stem">short</div>'),
+                    _q("q6", '<div class="stem">short</div>'),           # short: NEVER deduped
+                ],
+                "total": 6, "page": 1, "page_size": 25, "mode": "exact",
+                "degraded": False, "facets": {}}
+
+
+def test_dedupe_drops_normalized_duplicates_keeps_order_and_shorts(export_dir, monkeypatch):
+    monkeypatch.setattr(paper, "QxClient", _DupQx)
+    res = paper.build_paper("circular-motion", variant="paper")
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert [q["q_uid"] for q in data["questions"]] == ["q1", "q4", "q5", "q6"]
+    assert res["questions"] == 4
+
+
+def test_dedupe_runs_before_the_drill_slice(export_dir, monkeypatch):
+    # 12 rows where rows 0..8 are one repeated body: a post-slice dedupe would
+    # leave a drill of 1 distinct + slice waste; pre-slice dedupe fills the drill
+    # with 8 DISTINCT questions.
+    class _NineDupsQx(_FakeQx):
+        def search(self, **kw):
+            rows = [_q(f"d{i}", _LONG_A) for i in range(9)]
+            rows += [_q(f"u{i}", f'<div class="stem">Unique question number {i} '
+                                 f'with enough length to clear the threshold.</div>')
+                     for i in range(9)]
+            return {"results": rows, "total": 18, "page": 1, "page_size": 25,
+                    "mode": "exact", "degraded": False, "facets": {}}
+    monkeypatch.setattr(paper, "QxClient", _NineDupsQx)
+    paper.build_paper("circular-motion", variant="drill")
+    data = _deck_json(export_dir, "circular-motion-drill.json")
+    uids = [q["q_uid"] for q in data["questions"]]
+    assert len(uids) == paper._DRILL_SIZE
+    assert uids == ["d0", "u0", "u1", "u2", "u3", "u4", "u5", "u6"]   # 8 distinct
+
+
+def test_dedupe_results_is_pure_and_deterministic():
+    rows = [{"html": _LONG_A}, {"html": _LONG_A}, {"html": _LONG_B}]
+    once = paper._dedupe_results(list(rows))
+    twice = paper._dedupe_results(list(rows))
+    assert once == twice and len(once) == 2
