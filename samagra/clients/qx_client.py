@@ -1,10 +1,10 @@
 """QxClient — thin client to the always-up local QX server's JSON search route.
 
-QX (gpt-extract-ques) is the question engine. It runs as a local read-only HTTP
-server (``python gui/qx_browser.py`` -> :8783) exposing ``GET /api/qsearch``:
-exact + semantic search with per-result rendered HTML (KaTeX maths + figures) and
-browse facets. SAMAGRA's ``/api/questions`` proxies this so the OS Questions app
-gets the real QX engine instead of a thin LIKE slice over QX's sqlite.
+QX (gpt-extract-ques) is the question engine, now served by combinedDBQues. It runs
+as a local read-only HTTP server (``python gui/qx_browser.py`` -> :8790) exposing
+``GET /api/qsearch``: exact + semantic search with per-result rendered HTML (KaTeX
+maths + figures) and browse facets. SAMAGRA's ``/api/questions`` proxies this so the
+OS Questions app gets the real QX engine instead of a thin LIKE slice over QX's sqlite.
 
 No secret: QX is local and fail-open on localhost (Cloudflare Access only engages
 when QX_ACCESS_* env is set). The base URL is configurable via SAMAGRA_QX_SERVER_URL.

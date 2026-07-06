@@ -1,9 +1,11 @@
 """QX (gpt-extract-ques) adapter — the question engine.
 
-Content DB (`qx_content.sqlite`) holds documents + questions but its subject/chapter
-columns are NULL; the real, overlay-aware metadata lives in `builder.sqlite.search_index`
-(coalesce ov_* over base columns). We attach both READ-ONLY (immutable) so we never
-interfere with QX's own writes.
+Backed by combinedDBQues's unified DBs: `unified_content.sqlite` holds documents +
+questions but its subject/chapter columns are NULL; the real, overlay-aware metadata
+lives in `unified_builder.sqlite.search_index` (coalesce ov_* over base columns),
+same as before. combinedDBQues is a LIVE WAL corpus — their validation pipeline
+writes it in place — so we attach both READ-ONLY (plain `mode=ro`, no `immutable`)
+so our reads see live commits while still refusing writes ourselves.
 """
 from __future__ import annotations
 
@@ -16,7 +18,11 @@ from .base import Adapter, Artifact
 
 
 def _ro(path) -> sqlite3.Connection:
-    return sqlite3.connect(f"file:{path}?mode=ro&immutable=1", uri=True)
+    # mode=ro WITHOUT immutable=1: combinedDBQues is a LIVE WAL corpus (their
+    # validation pipeline writes in place). immutable=1 would make sqlite skip
+    # the WAL and serve stale/torn reads; a plain ro connection attaches the WAL
+    # like any reader while still refusing writes (the firewall holds).
+    return sqlite3.connect(f"file:{path}?mode=ro", uri=True)
 
 
 class QXAdapter(Adapter):

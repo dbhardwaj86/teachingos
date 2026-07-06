@@ -148,9 +148,9 @@ def api_search(q: str = "", source: str | None = None,
 def api_questions(q: str = "", subject: str | None = None,
                   chapter: str | None = None, qtype: str | None = None,
                   mode: str = "exact", page: int = 1):
-    # Proxy the always-up QX engine (gui/qx_browser.py :8783) which owns the real
-    # exact + semantic search, KaTeX maths and figure rendering. QX renders the
-    # question HTML with relative /asset URLs -> absolutize them to the QX server
+    # Proxy the always-up combinedDBQues engine (gui/qx_browser.py :8790) which owns
+    # the real exact + semantic search, KaTeX maths and figure rendering. QX renders
+    # the question HTML with relative /asset URLs -> absolutize them to the QX server
     # so figures load. QX unreachable -> graceful empty + error (never a 500).
     # W1.3: QxClient() validates QX_SERVER_URL — a poisoned (off-host) URL raises
     # and is caught below, so the proxy never fetches an attacker host (SSRF).
@@ -161,7 +161,7 @@ def api_questions(q: str = "", subject: str | None = None,
     except Exception:  # noqa: BLE001 — bad URL / connection refused / timeout / bad JSON
         return {"results": [], "total": 0, "page": page, "page_size": 0,
                 "mode": mode, "degraded": False, "facets": {},
-                "error": "questions backend unavailable — is the QX server running on :8783?"}
+                "error": "questions backend unavailable — is combinedDBQues serving on :8790?"}
     return questions_proxy.absolutize_assets(payload, client.base_url)
 
 
