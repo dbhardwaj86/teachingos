@@ -199,6 +199,35 @@ def test_figure_image_failure_rolls_back_and_is_retryable(env, monkeypatch):
     assert run.build(aid)["status"] == "captured"
 
 
+def test_empty_image_need_build_routes_to_changes_not_a_raise(env, monkeypatch):
+    """A chapter with ZERO image-need blocks is a legitimate empty build (items=0,
+    errors=0 — the Task 3 contract test_build_figures_empty_when_no_image_need pins)
+    and must flow through validate_product to build()'s needs_review gate -> the
+    terminal 'changes' status, never a validate_product ValueError + rollback.
+    Mirrors the samadhan empty-brief -> changes precedent.
+
+    Path choice: figure.preflight requires only chapter + configured clients (NOT
+    >=1 brief), so the REAL path is exercised honestly with an empty-brief chapter
+    fixture — no SAMAGRA_FIGURE_CAP=0 workaround needed."""
+    monkeypatch.delenv("SAMAGRA_FIGURE_AUTOCAPTURE", raising=False)
+    from samagra.lectures import render
+    monkeypatch.setattr(render, "load_chapter", lambda slug: {
+        "title": "Gauss Law", "sections": [
+            {"title": "S", "blocks": [{"type": "prose", "html": "<p>x</p>"}]}]})
+    _fake_build_figures_ok(monkeypatch)
+    res = _approve_and_build("textbook:gauss-law")   # must NOT raise
+    assert res["status"] == "changes"
+    c = store.connect()
+    try:
+        verbs = [e["verb"] for e in store.list_events_for_assignment(c, res["assignment_id"])]
+        a = [x for x in store.list_assignments(c) if x["id"] == res["assignment_id"]][0]
+    finally:
+        c.close()
+    assert a["status"] == "changes"
+    assert "product_created" in verbs                # the empty gallery WAS recorded
+    assert "product_build_failed" not in verbs       # never the rollback path
+
+
 def test_samadhan_preflight_unchanged(env, monkeypatch):
     # Regression pin: the samadhan lane still routes to samadhan.preflight, not
     # figure.preflight (the lane-dispatch must not break the D2 lane). build() calls

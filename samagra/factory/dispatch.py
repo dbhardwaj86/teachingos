@@ -167,8 +167,14 @@ def _assert_figures_present(line: str, result: dict) -> None:
     """For the figure lane ONLY: the gallery html check (above) is not enough — a
     build that produced a gallery but zero image files must be refused, not
     captured. Assert at least one non-empty PNG exists on disk under the sibling
-    <slug>-figures/ directory."""
+    <slug>-figures/ directory. A legitimately EMPTY build (items==0 — a chapter
+    with no image-need briefs) is NOT a defect: it flows through to build()'s
+    needs_review gate and lands in 'changes' (the samadhan empty-brief precedent),
+    so it early-returns here instead of raising into the rollback path."""
     if result.get("variant") != "figure":
+        return
+    if result.get("items", 0) == 0:
+        # a legitimate empty brief set; build()'s needs_review gate routes it to `changes`
         return
     pngs = []
     for f in result.get("figures", []) or []:
