@@ -286,6 +286,34 @@ def api_factory_unpublish(payload: dict):
         raise HTTPException(409, str(e))
 
 
+# -- G5 factory-run write path (owner-gated; thin delegates to samagra/factory/run.py) --
+def _parse_seed_ref_body(payload: dict) -> str:
+    """Validate {seed_ref}. Required non-empty str; v1 scope guard restricts to the
+    textbook: prefix (spec §4.1/§4.2) — munshi:/other prefixes stay CLI-only."""
+    seed_ref = (payload or {}).get("seed_ref")
+    if not isinstance(seed_ref, str) or not seed_ref.strip():
+        raise HTTPException(400, "seed_ref is required")
+    seed_ref = seed_ref.strip()
+    if not seed_ref.startswith("textbook:"):
+        raise HTTPException(400, "seed_ref must start with 'textbook:' (v1 GUI scope)")
+    return seed_ref
+
+
+@app.post("/api/factory/plan")
+def api_factory_plan(payload: dict):
+    # The GUI/network sibling of `samagra factory plan`. dry=False so it actually
+    # records the in-review child assignments (the CLI's live-mode behaviour);
+    # lane is omitted so classify() drives the default 5-lane deterministic fan-out
+    # — the GUI never targets a single lane (samadhan/seed stay CLI-only, F-G5-3).
+    seed_ref = _parse_seed_ref_body(payload)
+    from ..factory import run as factory_run
+    try:
+        proposals = factory_run.plan(seed_ref, dry=False)
+    except ValueError as e:
+        raise HTTPException(409, str(e))
+    return {"proposals": proposals}
+
+
 # -- G3 PRATHAM student identity (PUBLIC — deliberately NOT in _PROTECTED_*) ------
 # /learn stays public-by-design (DEC-11); the session cookie is the only credential.
 # The login write touches ONLY pratham.db (physically isolated from governance.db,
