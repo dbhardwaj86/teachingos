@@ -1,5 +1,65 @@
 # SAMAGRA — Handoff
 
+> **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ SLICE R (combinedDBQues question-bank rewire) SHIPPED 2026-07-07 — spec RATIFIED,
+> DEC-15 RATIFIED, review gate CLOSED.** Built on branch `feature/combineddbques-rewire`, commits `2fa3e8f..3581d63`.
+> SAMAGRA's question bank is repointed from the old QX engine (:8783, `C:\SandBox\gpt_box\gpt-extract-ques`) to
+> **combinedDBQues** (:8790, `C:\SandBox\claude_khanak_box\combinedDBQues` — 48,589 physics questions, live WAL
+> sqlite corpus), on the Chairman's 2026-07-06 directive and the run evidence from the first GUI-driven throughput
+> run (QX served Q1≡Q2 duplicates + was cold-slow).
+> - **(a) Config repoint** — `COMBINED_DB_ROOT` (env `SAMAGRA_COMBINED_DB_ROOT`), `QX_SERVER_URL` default :8790,
+> unified DB paths (`app/qx/unified_{content,builder}.sqlite`) with rollback env overrides
+> `SAMAGRA_QX_BUILDER_DB`/`SAMAGRA_QX_CONTENT_DB`.
+> - **(b) Chapter mapping** — a git-committed 59-row `chapter_map.json` (slug → `{chapter_id, chapter display name}`)
+> + a pure loader `samagra/factory/chapter_map.py` (graceful on missing/bad JSON) + a frozen 30-chapter taxonomy
+> fixture for offline tests.
+> - **(c) Tiered topical retrieval** — `samagra/factory/paper.py`'s `_retrieve` now runs **tier 1** exact
+> query+chapter-scoped → if fewer than `_DRILL_SIZE` (8) distinct post-dedupe hits, **tier 2** semantic
+> query+chapter-scoped → if empty/unmapped, **tier 3** the legacy exact text-only fallback. This REPLACED the
+> original chapter-listing-primary design (see the D4 delta below — a review HIGH). Meta `{query, chapter, mode}`
+> recorded in the artifact JSON, `mode` mirrored verbatim from the server (degradation-honest).
+> - **(d) Dedupe** — client-side `_dedupe_results` (tag-stripped visible text + `data-tex` math-aware projection,
+> figure src/alt deliberately excluded per a 127-row live census) runs BEFORE the drill slice, pinned by regression.
+> - **(e) `adapters/qx.py`** — dropped `immutable=1` (WAL-resident data was invisible under it) → plain `mode=ro`.
+> - **(f) Opt-in live smoke** `SAMAGRA_LIVE_QX_SMOKE` — live-proven (paper 25 q / drill 8, answer-free, dedupe held).
+> - **(g) Docs** — `.env.example` + `docs/deploy-tunnel.md`: 3-line rollback recipe (+2 DB-path overrides for
+> non-standard layouts), LAN demo mode, the `COMBINEDDB-QX` autostart schtask as a **pending owner registration**
+> (verbatim one-liner in the docs), precise rollback semantics.
+> - **(h) `concept_aliases.json` re-curation + coverage rebuild** — 128 concepts, 1054 edges, 768 cells, 600 gaps
+> (was 86/727/516/498); residual no-pointer concepts (transistors/modulation/radioactivity) are legitimately out of
+> textbook scope.
+> - **Plan deltas (D1–D5):** D1 `SAMAGRA_HOST` already existed (no new config surface); D2 rollback also needs the
+> 2 DB-path env overrides; D3 dropped `immutable=1` (WAL invisibility); D4 tiered retrieval REPLACED the spec's
+> chapter-listing-primary design (the review HIGH — 51/59 same-chapter slugs were byte-identical papers/drills);
+> D5 dedupe projection extended with `data-tex` (the Codex MED).
+> - **Review gate (all closed):** 4-lens adversarial Workflow `wf_7cf5c7d9-ac4` — 1 HIGH (same-chapter-slug
+> byte-identical papers, live-reproduced) fixed by tiered retrieval; 1 MED (docs claimed a non-existent schtask)
+> fixed; an independent re-verifier confirmed all 4 findings FIXED via a fresh live slug-pair replay. **Codex
+> pre-merge review 31** (the DEC-7-style QX-seam boundary review): **NO-GO** (dedupe blind to `data-tex` math; weak
+> rollback fail-visibility) → remediated TDD → **addendum NO-GO** (an image-src/alt-dedupe MED was **REFUTED** with
+> a live 127-row census, pinned by design; a rollback-docs-overclaim LOW + a mode-metadata-lies-on-degraded-semantic
+> LOW both fixed) → **addendum-2 GO-WITH-CAVEATS** (all 3 resolved; 1 new mode-schema LOW caveat closed same-slice,
+> commit `3c4d21e`) = effectively **GO**. Report `docs/codex-reviews/31-combineddbques-rewire-premerge.report.md`.
+> - **Gate: 695 pytest** (0 failures, 2 skips = opt-in live smokes) **+ 639 vitest + tsc + build green.**
+> - **DEC-15 RATIFIED 2026-07-07** on the Chairman's standing "slice r spec approved... auto approve and execute"
+> delegation, now that the review gate is closed. Invariants: (1) combinedDBQues strictly READ-ONLY for samagra
+> (HTTP `/api/qsearch` + direct sqlite `mode=ro` only); (2) the answer-leak guard unchanged, covering the fork's
+> render output; (3) no new prod write path, publish gate untouched, no migration, no secrets; (4) `chapter_map.json`
+> is the git-committed curated crosswalk — retrieval-curation changes are reviewed commits, not runtime state; (5)
+> rollback = the documented env lines.
+> - **Spec** `docs/superpowers/specs/2026-07-06-samagra-combineddbques-rewire-design.md` (§15 implementation-outcome
+> section records the full chronicle); **plan**
+> `docs/superpowers/plans/2026-07-06-samagra-combineddbques-rewire.md`.
+> - **⚠ Owner actions outstanding:** (a) register the `COMBINEDDB-QX` schtask (one-liner in
+> `docs/deploy-tunnel.md`); (b) `git push origin main` after merge (agent push is classifier-blocked); (c) delete 3
+> Codex-sandbox-owned throwaway dirs — `tmp/pytest-addendum2-focused`, `tmp/pytest-addendum2-full`,
+> `tmp/pytest-review31` — owned by the `CodexSandboxOffline` principal, need `takeown /F ... /R /D Y` then
+> `rmdir /S /Q`.
+> - **▶ NEXT:** the **LLM provider mini-slice** (OpenAI key already in `.env` — adjust `llm_client.py` for
+> provider flexibility; touches the DEC-7-reviewed D2 generation boundary, so it gets its own mini-design + review
+> addendum), then **Phase F** per DEC-9's ratified ordering: **image-gen figures first, slides second, NO audio.**
+>
+> ---
+>
 > **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ FIRST GUI-DRIVEN THROUGHPUT RUN DONE 2026-07-06 — the G5 milestone is CLOSED.** `gauss-law` ran the whole recipe as owner-directed clicks in the Publish app's Factory-run stepper — **Plan (planned 5 lanes) → Approve seed (approved 5) → Build all (built 5, incl. `paper`/`drill` against the live QX engine) → Publish** — and is LIVE at `/learn/gauss-law` (all 5 lane tabs render; Pariksha spot-checked **answer-free**; deep-links work). The **G4 adaptive loop was exercised live in the same pass**: a freshly enrolled student ("GUI Smoke 0706") signed in at `/learn`, marked gauss-law Saar **Done** (`POST /api/learn/progress` accepted; Done badge rendered) and received the deterministic **What's-next** queue (Circular-Motion lanes, Saar-led) — the smoke student was **revoked** afterwards (`samagra pratham revoke`). **The live stores are no longer empty:** `published/` now carries TWO chapters — circular-motion (published 2026-07-05 22:59Z during the G5 session's live review-replay, `pub_c5b532ad64eb`) + gauss-law (today's Chairman-directed GUI run).
 > - **Run notes:** (1) QX `/api/qsearch` was cold/slow at run start (28–48s vs `qx_client._TIMEOUT=30`) — it warmed mid-run and `paper`/`drill` built in ~9s each; if a future build 500s on the QX lanes, re-click Build (the refusal is clean + retryable by design). (2) Nine **orphaned** full-filesystem `find.exe` scans (dead parent processes, an unrelated TSYS/LATTICE hunt) were found grinding CPU/disk — they could not be killed from this session (permission classifier); **owner may want to clean them** (`Get-Process find | Stop-Process -Force`). (3) ⚠ QX served **Q1≡Q2 duplicates** for the gauss-law paper (only 2 exact hits, identical text) — direct evidence for the combinedDBQues rewire directive below.
 > - **▶ NEXT:** the **combinedDBQues question-bank rewire** (Chairman directive 2026-07-06: source questions from `C:\SandBox\claude_khanak_box\combinedDBQues`; needs its own design + DEC-7-style review — touches the read-only firewall's QX seam + the Phase-E concept spine) and **Phase F** (the heavy async LLM lanes) per DEC-9's ratified ordering. `/learn` public exposure remains the separate owner deploy step.

@@ -1,7 +1,7 @@
 # SAMAGRA — combinedDBQues question-bank rewire (Slice R) — design
 
 - **Date:** 2026-07-06
-- **Status:** PROPOSED (Chairman review pending; design approach B approved in-session with standing delegation for non-critical rulings)
+- **Status:** RATIFIED & SHIPPED 2026-07-07 — DEC-15 ratified (standing "auto approve and execute" delegation + closed review gate; see §15). Implemented on `feature/combineddbques-rewire`, commits `2fa3e8f..3581d63`.
 - **Driver:** Chairman directive 2026-07-06 — "SAMAGRA's question bank should use `C:\SandBox\claude_khanak_box\combinedDBQues` as its source." Run evidence from the first GUI-driven throughput run (same day): the old QX corpus served Q1≡Q2 duplicates for the gauss-law paper (only 2 exact hits) and was cold-slow (28–48s vs the 30s client timeout).
 - **Review gate:** DEC-7-style dedicated Codex pre-merge review (this slice touches the read-only firewall's QX seam) + adversarial multi-lens final review, per house convention.
 
@@ -148,3 +148,39 @@ Committed JSON at repo root:
 ## 14. Rollback
 
 Two env lines (`SAMAGRA_QX_SERVER_URL` → :8783, `SAMAGRA_COMBINED_DB_ROOT` → old root) restore the old engine end-to-end; `chapter_map.json` unknown-slug fallback means the old free-text query path still exists in code. `concept_graph.db` is rebuildable from either source.
+
+## 15. Implementation outcome (recorded 2026-07-07)
+
+**Status: SHIPPED on `feature/combineddbques-rewire`, commits `2fa3e8f..3581d63`.** Delivered exactly the architecture above, with five deltas the plan-time verifications (§12) and the review gate surfaced.
+
+### §12 verifications — resolved
+
+1. **Empty-`q` + `chapter` listing on :8790:** confirmed supported at plan time — the live server accepts `q=""` with a `chapter` facet and returns a chapter-scoped listing. This unblocked §6 step 2 as originally designed.
+2. **`chapter` param match target:** confirmed **display `chapter` string** (not `chapter_id`) — matches the spec's assumption in §6/§7; `chapter_map.json`'s `chapter` field (display name) is the value passed to the client, `chapter_id` stays the taxonomy-validation key only.
+3. **Live latency:** :8790 measured cold at 28–48s against `qx_client._TIMEOUT=30` before warming (same cold-start signature the first GUI throughput run had already surfaced against the old :8783 engine) — timeout left at 30s; a cold-start retry is clean and safe by design (unchanged from the pre-existing QX-down posture), so no bump was made.
+4. **`search_index.chapter` ↔ `taxonomy.py` alignment:** the 30 canonical chapter display names line up 1:1 with the live corpus; the frozen 30-chapter taxonomy fixture (§11) pins this for offline tests with no live dependency.
+
+### Deltas from the original design (D1–D5)
+
+- **D1 — `SAMAGRA_HOST` already existed.** The design's ops section implied a new bind-host env var; `SAMAGRA_HOST`/`SAMAGRA_BIND_HOST`-equivalent plumbing was already present from a prior slice — no new config surface needed, just documentation of the existing knob in the LAN-demo-mode section of `docs/deploy-tunnel.md`.
+- **D2 — rollback needs the DB-path overrides too.** The original §14 rollback recipe named only `SAMAGRA_QX_SERVER_URL` + `SAMAGRA_COMBINED_DB_ROOT`; in practice the direct-sqlite consumers (`adapters/qx.py`, `coverage/concepts.py`) also need `SAMAGRA_QX_BUILDER_DB`/`SAMAGRA_QX_CONTENT_DB` overridden when rolling back to a non-standard old-engine layout. `.env.example` now documents all four as the rollback set (3 lines when the old root follows the standard layout; the 2 DB-path lines are the belt-and-suspenders case).
+- **D3 — drop `immutable=1`.** The design didn't anticipate this: combinedDBQues is a **live WAL-mode** corpus under active mutation (staged validation pipeline). SQLite's `immutable=1` connection flag assumes the file never changes underneath the reader and can serve stale/invisible data against a WAL-resident writer — direct-read consumers (`coverage-build`) saw rows go missing under `immutable=1` that were plainly present via `mode=ro`. Fixed by dropping to plain `mode=ro` (§4's read-only invariant is unaffected — `mode=ro` is still strictly read-only, just without the stronger-but-wrong immutability assumption).
+- **D4 — tiered retrieval REPLACES chapter-listing-primary (the review HIGH).** The original §6 design made chapter-scoped listing (step 2) primary with a legacy text-query fallback (step 3) only for unmapped/zero-hit slugs. The 4-lens adversarial review (below) found this made 51 of the 59 textbook slugs that share a many-to-one chapter mapping return **byte-identical papers and drills** — a real live-reproduced defect (chapter-scoped listing doesn't discriminate between slugs in the same chapter). Fixed by inserting a genuine tier between the original two: **tier 1** exact query+chapter-scoped (discriminating on both), **tier 2** semantic query+chapter-scoped (recovers distinct results when exact-tier-1 returns <8 distinct post-dedupe hits), **tier 3** the original legacy exact text-only fallback (unmapped slug or empty tier 1/2). Meta `{query, chapter, mode}` is recorded in the artifact JSON, with `mode` taken verbatim from the server's own report (degradation-honest — never asserts a stronger retrieval mode than what actually ran).
+- **D5 — dedupe projection extended with `data-tex` (the Codex MED, refuted-with-fix).** The original §6 dedupe projection was tag-stripped visible text only. Codex review 31 flagged that two results with different LaTeX (`data-tex` attribute) but coincidentally identical stripped visible text would collide and one would be wrongly dropped. Fixed by folding `data-tex` attribute values into the projection (math-aware dedupe) — figure `src`/`alt` were deliberately left OUT of the projection after a live census of 127 collision rows showed every real duplicate cluster already shared identical text+math, and no genuine near-duplicate needed the figure fields to distinguish it (asset paths are per-paper, not per-question, so including them would have suppressed true duplicates); this is pinned by a regression test.
+
+### Review-gate chronicle
+
+1. **4-lens adversarial Workflow `wf_7cf5c7d9-ac4`** (pre-Codex, whole-slice sweep): **1 HIGH** — the chapter-only listing design made 51/59 same-chapter textbook slugs produce byte-identical papers/drills (live-reproduced) — fixed by the D4 tiered-retrieval rework above. **1 MED** — the ops docs claimed a scheduled task that didn't yet exist — fixed (docs corrected to describe it as pending owner registration, with the verbatim `schtasks` one-liner). An independent adversarial re-verifier confirmed all 4 raw findings FIXED via a fresh live slug-pair replay: `kinematics-2-d` vs `kinematics-relative-motion` (both routed through tier-2 semantic, since they share a chapter) and `electric-field` vs `electric-dipole` (tier-1 exact) — all four resulting drills distinct and answer-free.
+2. **Codex pre-merge review 31** (DEC-7-style, dedicated to the QX-seam boundary — `docs/codex-reviews/31-combineddbques-rewire-premerge.report.md`): first pass **NO-GO** — 1 MED (dedupe blind to `data-tex` math, i.e. D5 above) + 1 LOW (rollback fail-visibility: a misconfigured rollback could fail silently instead of erroring clearly) → remediated TDD → **addendum NO-GO** — a further pass raised 1 MED (image `src`/`alt` also excluded from dedupe — **REFUTED**, backed by the 127-row live census showing this is by design, not an oversight, now pinned in a regression test) + 1 LOW (rollback docs overclaiming what the 2-line recipe covered — fixed) + 1 LOW (the `mode` metadata could report a stronger retrieval tier than what actually executed on a degraded semantic fallback — fixed to always mirror the server's own reported mode) → **addendum-2 GO-WITH-CAVEATS** — all 3 prior findings resolved; 1 new LOW (a mode-schema nit) → closed same-slice in commit `3c4d21e` → **effectively GO**.
+
+### Final gate
+
+**695 pytest** (0 failures, 2 skips = opt-in live smokes: the pre-existing Samadhan LLM smoke + the new `SAMAGRA_LIVE_QX_SMOKE` combinedDBQues golden thread) **+ 639 vitest + tsc + build green.**
+
+### DEC-15 — RATIFIED 2026-07-07
+
+Ratified on the Chairman's standing delegation ("slice r spec approved... auto approve and execute", 2026-07-06) now that the review gate above is fully closed (Workflow HIGH+MED fixed and independently re-verified; Codex 31 NO-GO → addendum NO-GO → addendum-2 GO-WITH-CAVEATS with its one caveat closed same-slice). The five invariants in §2 are pinned as-is with no amendment: (1) combinedDBQues strictly read-only for samagra (HTTP + `mode=ro` sqlite only); (2) the answer-leak guard (`_ANSWER_MARKERS`/`_assert_no_answer_leak`) unchanged and covering the fork's render output; (3) no new prod write path, publish gate untouched, no migration, no secrets; (4) `chapter_map.json` stays the git-committed curated crosswalk — retrieval-curation changes are reviewed commits, never runtime state; (5) rollback is the documented env-line set (now 3 lines per D2 above, plus the 2 DB-path overrides for non-standard layouts).
+
+### Owner actions outstanding
+
+(a) register the `COMBINEDDB-QX` scheduled task — verbatim one-liner in `docs/deploy-tunnel.md`; (b) `git push origin main` after merge (the agent push classifier blocks this — owner-only step); (c) delete 3 Codex-sandbox-owned throwaway directories — `tmp/pytest-addendum2-focused`, `tmp/pytest-addendum2-full`, `tmp/pytest-review31` — owned by the `CodexSandboxOffline` principal and requiring elevation (`takeown /F ... /R /D Y` then `rmdir /S /Q`).

@@ -498,10 +498,62 @@
 > for the gauss-law paper (only 2 exact hits); QX was also cold/slow (28–48s vs the client's 30s timeout)
 > before warming mid-run — QX-lane build failures are clean + retryable by re-clicking Build.
 >
-> **NEXT:** the **combinedDBQues question-bank rewire** (Chairman directive above; needs its own design +
-> DEC-7-style review — touches the QX seam + the Phase-E concept spine), then **Phase F** (the heavy async LLM
-> lanes) per DEC-9's ratified ordering. `/learn` public exposure remains the separate owner deploy step.
-> **DEC-8 invariants unchanged.**
+> **✅ SLICE R (combinedDBQues question-bank rewire) SHIPPED + spec RATIFIED + DEC-15 RATIFIED 2026-07-07** — built
+> on branch `feature/combineddbques-rewire`, commits `2fa3e8f..3581d63` (docs-synced same date). Repoints SAMAGRA's
+> question bank from the old QX engine (:8783, `C:\SandBox\gpt_box\gpt-extract-ques`) to **combinedDBQues** (:8790,
+> `C:\SandBox\claude_khanak_box\combinedDBQues` — 48,589 physics questions, live WAL sqlite corpus), on the
+> Chairman's 2026-07-06 directive and the same-day run evidence (QX served Q1≡Q2 duplicates for the gauss-law
+> paper; QX was also cold-slow). **Config repoint:** `COMBINED_DB_ROOT` (env `SAMAGRA_COMBINED_DB_ROOT`),
+> `QX_SERVER_URL` default :8790, unified DB paths (`app/qx/unified_{content,builder}.sqlite`) with rollback env
+> overrides `SAMAGRA_QX_BUILDER_DB`/`SAMAGRA_QX_CONTENT_DB`. **Chapter mapping:** a git-committed 59-row
+> `chapter_map.json` (slug → `{chapter_id, chapter display name}`) + PURE loader `samagra/factory/chapter_map.py`
+> (graceful on missing/bad JSON) + a frozen 30-chapter taxonomy fixture (no live dependency in unit tests). **The
+> load-bearing rework — tiered topical retrieval** in `samagra/factory/paper.py`'s `_retrieve`: **tier 1** exact
+> query+chapter-scoped → if fewer than `_DRILL_SIZE` (8) distinct post-dedupe hits, **tier 2** semantic
+> query+chapter-scoped → if empty/unmapped, **tier 3** the legacy exact text-only fallback; meta
+> `{query, chapter, mode}` recorded in the artifact JSON with `mode` mirrored verbatim from the server
+> (degradation-honest, never overclaims a stronger retrieval tier than what ran). **Dedupe** —
+> `_dedupe_results` (tag-stripped visible text + `data-tex` math-aware projection; figure src/alt deliberately
+> excluded per a 127-row live census showing every real collision is a true duplicate) runs BEFORE the drill slice,
+> pinned by regression. **`adapters/qx.py`** dropped `immutable=1` (WAL-resident data was invisible under it) → plain
+> `mode=ro`. Opt-in live smoke `SAMAGRA_LIVE_QX_SMOKE` (live-proven: paper 25 q / drill 8, answer-free, dedupe held).
+> Docs: `.env.example` + `docs/deploy-tunnel.md` (3-line rollback recipe + 2 DB-path overrides for non-standard
+> layouts, LAN demo mode, the `COMBINEDDB-QX` autostart schtask as a **pending owner registration** with a verbatim
+> one-liner). `concept_aliases.json` re-curated + coverage rebuilt: **128 concepts, 1054 edges, 768 cells, 600
+> gaps** (was 86/727/516/498); residual no-pointer concepts (transistors/modulation/radioactivity) are legitimately
+> out of textbook scope. **Plan deltas D1–D5:** D1 `SAMAGRA_HOST` already existed; D2 rollback also needs the 2
+> DB-path env overrides; D3 dropped `immutable=1` (WAL invisibility); D4 tiered retrieval REPLACED the spec's
+> original chapter-listing-primary design (the review HIGH below); D5 dedupe projection extended with `data-tex`
+> (the Codex MED below). **Review gate:** **4-lens adversarial Workflow `wf_7cf5c7d9-ac4`** — 1 HIGH (chapter-only
+> listing made 51/59 same-chapter textbook slugs return byte-identical papers/drills, live-reproduced) → fixed by
+> the tiered retrieval; 1 MED (docs claimed a non-existent schtask) → fixed; an independent re-verifier confirmed
+> all 4 findings FIXED via a fresh live slug-pair replay (`kinematics-2-d` vs `kinematics-relative-motion` via
+> tier-2 semantic; `electric-field` vs `electric-dipole` via tier-1 — distinct, answer-free drills). **Codex
+> pre-merge review 31** (DEC-7-style, the QX-seam boundary): **NO-GO** (MED dedupe blind to `data-tex` math; LOW
+> weak rollback fail-visibility) → remediated TDD → **addendum NO-GO** (MED image src/alt dedupe — **REFUTED** with
+> a live 127-row census, pinned by design; LOW rollback-docs overclaim — fixed; LOW mode metadata lying on degraded
+> semantic — fixed) → **addendum-2 GO-WITH-CAVEATS** (all 3 resolved; 1 new LOW mode-schema caveat → closed
+> same-slice, commit `3c4d21e`) = effectively **GO**. Report committed
+> `docs/codex-reviews/31-combineddbques-rewire-premerge.report.md`. **Invariants HELD (DEC-15):** (1) combinedDBQues
+> strictly READ-ONLY for samagra (HTTP GET + direct sqlite `mode=ro` only); (2) the answer-leak guard
+> (`_ANSWER_MARKERS`/`_assert_no_answer_leak`) unchanged, covering the fork's render output; (3) no new prod write
+> path, publish gate untouched, no migration, no secrets; (4) `chapter_map.json` is the git-committed curated
+> crosswalk — retrieval-curation changes are reviewed commits, never runtime state; (5) rollback = the documented
+> env-line set. **Gate: 695 pytest** (0 failures, 2 skips = opt-in live smokes) **+ 639 vitest + tsc + build green.**
+> **DEC-15 RATIFIED 2026-07-07** on the Chairman's standing "slice r spec approved... auto approve and execute"
+> delegation, now that the review gate above is fully closed. Spec
+> `docs/superpowers/specs/2026-07-06-samagra-combineddbques-rewire-design.md` (Status flipped to RATIFIED & SHIPPED,
+> §15 records the full implementation-outcome chronicle); plan
+> `docs/superpowers/plans/2026-07-06-samagra-combineddbques-rewire.md`. **⚠ OWNER:** (a) register the
+> `COMBINEDDB-QX` schtask (one-liner in `docs/deploy-tunnel.md`); (b) `git push origin main` after merge (agent push
+> is classifier-blocked); (c) delete 3 Codex-sandbox-owned throwaway dirs — `tmp/pytest-addendum2-focused`,
+> `tmp/pytest-addendum2-full`, `tmp/pytest-review31` — owned by the `CodexSandboxOffline` principal, need
+> `takeown /F ... /R /D Y` then `rmdir /S /Q`.
+>
+> **NEXT:** the **LLM provider mini-slice** (OpenAI key already in `.env` — adjust `llm_client.py` for provider
+> flexibility; touches the DEC-7-reviewed D2 generation boundary, so it gets its own mini-design + review addendum),
+> then **Phase F** per DEC-9's ratified ordering: **image-gen figures first, slides second, NO audio.** `/learn`
+> public exposure remains the separate owner deploy step. **DEC-8 invariants unchanged.**
 >
 > **✅ Direction-coherence decision (ratified 2026-06-21 by Deepak; amended by DEC-6 on 2026-06-22):** a coherence
 > audit found execution solid but the strategic direction drifting — "SAMAGRA OS" had re-introduced the OS-sized
@@ -541,7 +593,7 @@
 
 <!-- scribe:begin v1 -->
 ## TeachingOS memory — auto-generated by scribe; edit OUTSIDE this block only
-_Updated 2026-07-06T14:06. Source: agent session distillation._
+_Updated 2026-07-06T19:24. Source: agent session distillation._
 - (5) 2026-07-06 claude: The question bank directory for SAMAGRA is set to C:\SandBox\claude_khanak_box\combinedDBQues. [question bank, SAMAGRA, file path]
 - (5) 2026-07-06 codex: A 4-lens adversarial review found 3 MEDs, leading to a remediation delta (3 commits). [adversarial review, MED, remediation]
 - (5) 2026-07-05 codex: Write endpoint POST /api/learn/progress uses JWT authentication with a token extracted from the Authorization header. [authentication, JWT]
@@ -551,7 +603,8 @@ _Updated 2026-07-06T14:06. Source: agent session distillation._
 - (5) 2026-07-02 claude: Prioritize student-facing features: assignment tracker, study timer, and grade calculator. [student features, assignment tracker, study timer]
 - (5) 2026-06-28 claude: User approved design for Phase G3 of TeachingOS: multi-tenant student identity (PRATHAM) + POST /api/factory/publish write path. [design, G3, TeachingOS]
 - (5) 2026-06-28 claude: Project named TeachingOS is the focus of development. [project, TeachingOS]
-- (5) 2026-06-27 claude: User decided to execute Phase G (PRATHAM) before Phase F, reversing the earlier deferral per DEC-9. [TeachingOS, PRATHAM, Phase G, Phase F]
+- (5) 2026-06-27 claude: Phase G (PRATHAM) was prioritized over Phase F, reversing the original order as per user directive from a previous conversation. [TeachingOS, PRATHAM, Phase G, Phase F, project planning]
+- (5) 2026-06-27 claude: Codex agents were launched for adversarial review of the current codebase, performing multidimensional exploration and bug hunting. [codex agents, adversarial review, bug hunting, code review]
 - (5) 2026-06-26 codex: Manifest generation fails when concept tags are missing, throwing unhandled KeyError. [manifest, error handling, KeyError]
 - (5) 2026-06-26 codex: Missing JWT authentication on POST /api/questions in samagra/questions_proxy.py [authentication, API security]
 - (5) 2026-06-26 codex: org.py endpoint GET /org/{id}/members allows enumeration without authorization (IDOR) [IDOR, authorization]
@@ -570,12 +623,11 @@ _Updated 2026-07-06T14:06. Source: agent session distillation._
 - (5) 2026-06-22 claude: TDD is enforced strictly: write test first, watch it fail, then minimal code. [TDD]
 - (5) 2026-06-22 claude: Plan to perform priority fixes and rescope the ROI gate in a new session, with handoff updates. [priority fixes, ROI gate, handoff, TeachingOS]
 - (5) 2026-06-22 claude: User finalized deployment by merging and pushing changes to make it durable. [merge, push, durable]
+- (4) 2026-07-06 claude: Next major task is to execute a GUI-driven throughput run: Plan, Approve seed, Build all, Publish, and verify at /learn. [throughput run, GUI, post-G5]
+- (4) 2026-07-06 claude: Plan for Slice R: rewire question bank to path C:\SandBox\claude_khanak_box\combinedDBQues. [question bank, Slice R, data migration]
 - (5) 2026-06-22 claude: The autonomous ralph loop is driving SAMAGRA OS to a fully working state. [SAMAGRA OS, ralph loop, autonomous deployment]
 - (5) 2026-06-22 claude: The Ralph loop's mission is to drive the SAMAGRA OS app to fully working, served from frontend/dist/ by FastAPI on :8799. [Ralph, SAMAGRA OS, FastAPI]
-- (5) 2026-06-21 claude: The session concluded with a plan to improve the app in a custom ralph loop and deploy to Cloudflare with a custom URL pointing to a localhost tunnel. [deployment, Cloudflare, localhost tunnel, ralph loop]
-- (5) 2026-06-21 claude: Munshi auth uses a single shared-secret cookie model: GET /login?k=<secret> sets the cookie; subsequent /api/ calls must carry it. [Munshi, authentication, cookie]
-- (5) 2026-06-21 claude: Immediate next step: update handoffs and project trackers plus summary (option B). [planning, project tracking]
-- (4) 2026-07-06 claude: Subagent-driven development skill is used to execute implementation plans by dispatching fresh subagents per task with two-stage review. [subagent-driven development, implementation plans, TeachingOS]
-- (4) 2026-07-06 claude: Phase G4 (adaptive student twin) was executed via 13-task plan using subagent-driven development. [phase G4, adaptive student twin, TeachingOS]
+- (5) 2026-06-21 claude: Create session handoff for next session to improve app via custom ralph loop until fully working and deployed to Cloudflare with custom URL pointing to localhost tunnel. [TeachingOS, session handoff, ralph loop, Cloudflare deployment, localhost tunnel]
+- (5) 2026-06-21 claude: Munshi authentication uses a shared-secret cookie model: the secret is consumed at /login?k=<secret>, setting a cookie for subsequent API calls. [TeachingOS, Munshi, auth]
 Deep recall: C:\SandBox\claude_box\memboxes\scribe\bin\scribe.cmd q "<topic>"
 <!-- scribe:end -->
