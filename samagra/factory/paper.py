@@ -166,6 +166,17 @@ def _assemble_items_html(results: list[dict]) -> str:
     return "\n".join(parts)
 
 
+def _served_mode(payload: dict, requested: str) -> str:
+    """The mode to record in artifact meta: the server-reported mode IF it is a
+    non-empty string, else the requested mode. Guards against a malformed
+    payload whose truthy non-string "mode" (e.g. an int or dict) would
+    otherwise leak uncoerced into the artifact JSON (Codex review 31
+    addendum-2 L caveat) — `payload.get("mode") or requested` alone lets any
+    truthy value through, string or not."""
+    m = payload.get("mode")
+    return m if isinstance(m, str) and m else requested
+
+
 def _retrieve(slug: str, client) -> tuple[list[dict], dict]:
     """Tiered, chapter-scoped, per-slug-topical retrieval (all tiers dedupe first):
 
@@ -194,16 +205,16 @@ def _retrieve(slug: str, client) -> tuple[list[dict], dict]:
         results = _dedupe_results(list(payload.get("results") or []))
         if len(results) >= _DRILL_SIZE:
             return results, {"query": query, "chapter": entry["chapter"],
-                              "mode": payload.get("mode") or "exact"}
+                              "mode": _served_mode(payload, "exact")}
         payload = client.search(q=query, mode="semantic", chapter=entry["chapter"], page=1)
         results = _dedupe_results(list(payload.get("results") or []))
         if results:
             return results, {"query": query, "chapter": entry["chapter"],
-                              "mode": payload.get("mode") or "semantic"}
+                              "mode": _served_mode(payload, "semantic")}
     payload = client.search(q=query, mode="exact", page=1)
     results = _dedupe_results(list(payload.get("results") or []))
     return results, {"query": query, "chapter": None,
-                      "mode": payload.get("mode") or "exact"}
+                      "mode": _served_mode(payload, "exact")}
 
 
 def build_paper(slug: str, *, variant: str) -> dict:

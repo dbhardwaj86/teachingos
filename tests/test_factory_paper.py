@@ -334,6 +334,32 @@ def test_meta_records_requested_mode_in_the_normal_undegraded_case(export_dir, t
     assert data["mode"] == "semantic"
 
 
+class _NonStringModeQx(_FakeQx):
+    """A malformed payload: "mode" is a truthy NON-STRING (e.g. an int) rather
+    than a mode string. `payload.get("mode") or <requested>` would happily let
+    this leak straight into the artifact meta since 123 is truthy."""
+
+    def search(self, **kw):
+        type(self).last_kw = kw
+        return {"results": _rows(8, prefix="n"), "total": 8, "page": 1,
+                "page_size": 25, "mode": 123, "degraded": False, "facets": {}}
+
+
+def test_meta_falls_back_to_requested_mode_when_server_mode_is_not_a_string(
+        export_dir, tmp_path, monkeypatch):
+    """Codex review 31 addendum-2 L caveat: a malformed payload with a truthy
+    non-string "mode" (e.g. an int or dict) must not persist uncoerced into the
+    artifact JSON meta. Only a non-empty STRING server mode should be accepted;
+    anything else must fall back to the requested mode string."""
+    _map(monkeypatch, tmp_path, {"circular-motion": {
+        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
+    monkeypatch.setattr(paper, "QxClient", _NonStringModeQx)
+    paper.build_paper("circular-motion", variant="paper")
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert data["mode"] == "exact"   # the requested mode, not the bogus 123
+    assert isinstance(data["mode"], str)
+
+
 def test_dedupe_drops_normalized_duplicates_keeps_order_and_shorts(export_dir, monkeypatch):
     monkeypatch.setattr(paper, "QxClient", _DupQx)
     res = paper.build_paper("circular-motion", variant="paper")
