@@ -3,6 +3,7 @@ import pytest
 from samagra import config
 from samagra.factory import coverage
 from samagra.factory.coverage import store
+from samagra.factory.coverage.concepts import load_physics_concepts
 
 
 def _sha(p):
@@ -24,10 +25,13 @@ def test_golden_thread_real_sources(tmp_path):
     if gov_before is not None:
         assert _sha(gov) == gov_before
 
-    # Slice R: QX_BUILDER_DB now points at the live combinedDBQues sidecar, whose
-    # concept count is that project's own scope (128 at rewire time), not the old
-    # QX engine's 86 — assert the shape (a real, positive count), not a stale
-    # hardcoded value tied to the previous engine's corpus.
+    # Slice R: QX_BUILDER_DB now points at the live combinedDBQues sidecar, so a
+    # hardcoded count (the old engine's 86) is stale. Assert self-consistency
+    # against the SAME live builder DB via the production loader (same
+    # `chapter_id LIKE 'physics.%'` filter) — immune to corpus growth, still
+    # catches a filter/count regression in the build.
+    live_concepts = load_physics_concepts()   # defaults to config.QX_BUILDER_DB
+    assert summary["concepts"] == len(live_concepts)
     assert summary["concepts"] > 0
     assert summary["gaps"] > 0
 
