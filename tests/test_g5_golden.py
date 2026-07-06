@@ -96,6 +96,13 @@ def test_golden_origin_gating_holds(monkeypatch):
         assert c.post(path, json=body).status_code == 403
 
 
+def _stable(manifest: dict) -> dict:
+    # generated_at is a second-resolution live timestamp recomputed per GET —
+    # legitimately differs across the recipe's wall-clock; everything else must
+    # be byte-stable through the whole factory run.
+    return {k: v for k, v in manifest.items() if k != "generated_at"}
+
+
 def test_golden_student_surface_untouched(tmp_path, monkeypatch):
     _fresh_world(tmp_path, monkeypatch)
     monkeypatch.setattr(config, "PRATHAM_DB", tmp_path / "pratham.db")
@@ -113,6 +120,6 @@ def test_golden_student_surface_untouched(tmp_path, monkeypatch):
     c.post("/api/factory/approve-seed", json={"seed_ref": seed_ref})
     c.post("/api/factory/build", json={"assignment_id": rev["assignment_id"]})
 
-    assert c.get("/api/published").json() == before_published
-    assert c.get("/api/learn/me").json() == before_me
+    assert _stable(c.get("/api/published").json()) == _stable(before_published)
+    assert c.get("/api/learn/me").json() == before_me   # exact: no timestamp field
     assert c.get("/api/learn/next").status_code == 401   # unchanged: session-gated
