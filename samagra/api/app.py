@@ -342,31 +342,41 @@ def api_factory_approve_seed(payload: dict):
     # reads the seed's in-review children itself (the same read-only lookup pattern
     # api_factory_build uses), keeps only the ones whose LINES[pipeline].kind is
     # NOT "llm"/"mcd", and approves each kept child individually via run.approve
-    # (the CLI's own single-assignment approve verb) inside the serialization lock.
-    # llm/mcd children are left in-review — CLI-only through their WHOLE HTTP
-    # lifecycle (approve AND build; mirrors api_factory_build's 403 refusal above).
-    seed_ref = _parse_seed_ref_body(payload)
+    # (the CLI's own single-assignment approve verb). llm/mcd children are left
+    # in-review — CLI-only through their WHOLE HTTP lifecycle (approve AND build;
+    # mirrors api_factory_build's 403 refusal above).
+    #
+    # Codex-30 addendum LOW, fixed: the scan+filter of in-review children now
+    # happens INSIDE _FACTORY_RUN_LOCK, immediately before the approve loop —
+    # not before the lock — so each serialized request re-reads current state.
+    # A concurrent duplicate POST then loses the lock race, re-scans, finds
+    # nothing left in-review (the winner already flipped it to "approved"), and
+    # returns {"approved": []} instead of racing on stale ids and 409ing.
+    seed_ref = _parse_seed_ref_body(payload)          # validation OUTSIDE the lock
     from ..factory.lines import LINES
     from ..factory import run as factory_run
-    gstore.ensure_tables()
-    conn = gstore.connect_ro()
-    try:
-        children = [a for a in gstore.list_assignments(conn)
-                    if a.get("seed_ref") == seed_ref and a["status"] == "in-review"]
-    finally:
-        conn.close()
-    kept = [a["id"] for a in children
-            if (spec := LINES.get(a.get("pipeline"))) is not None
-            and spec.kind not in ("llm", "mcd")]
     approved = []
     with _FACTORY_RUN_LOCK:
+        gstore.ensure_tables()
+        conn = gstore.connect_ro()
+        try:
+            children = [a for a in gstore.list_assignments(conn)
+                        if a.get("seed_ref") == seed_ref and a["status"] == "in-review"]
+        finally:
+            conn.close()
+        kept = [a["id"] for a in children
+                if (spec := LINES.get(a.get("pipeline"))) is not None
+                and spec.kind not in ("llm", "mcd")]
         for aid in kept:
             # run.approve raises ValueError on an unknown/wrong-pipeline/wrong-status
             # assignment; mapped to 409 like its build sibling. A mid-loop raise
             # leaves a partial batch — that matches the CLI's own semantics (each
             # approve is independent + idempotent-safe to re-run; a retried
             # approve-seed simply finds fewer in-review rows next time), so no
-            # rollback is engineered here.
+            # rollback is engineered here. With the scan now inside the lock, a
+            # mid-loop ValueError here means the row changed state some OTHER way
+            # between the scan and this specific approve (e.g. same-process CLI
+            # use), not a duplicate-POST race — the single-operator threat model.
             try:
                 factory_run.approve(aid)
             except ValueError as e:
