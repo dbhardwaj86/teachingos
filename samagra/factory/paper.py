@@ -169,21 +169,29 @@ def _retrieve(slug: str, client) -> tuple[list[dict], dict]:
        pre-Slice-R behavior).
 
     Returns (deduped_results, meta); meta = {"query", "chapter", "mode"} is
-    recorded into the artifact JSON."""
+    recorded into the artifact JSON. "mode" reflects what the SERVER actually
+    served (``payload["mode"]``), not necessarily what was requested — QX can
+    degrade an unavailable semantic search back to exact (SemanticUnavailable
+    in combinedDBQues search.py) and reports that degradation via its own
+    "mode" field; recording the requested mode instead would make the
+    artifact JSON lie about how the results were actually retrieved."""
     query = slug.replace("-", " ").strip()
     entry = chapter_map.load().get(slug)
     if entry:
         payload = client.search(q=query, mode="exact", chapter=entry["chapter"], page=1)
         results = _dedupe_results(list(payload.get("results") or []))
         if len(results) >= _DRILL_SIZE:
-            return results, {"query": query, "chapter": entry["chapter"], "mode": "exact"}
+            return results, {"query": query, "chapter": entry["chapter"],
+                              "mode": payload.get("mode") or "exact"}
         payload = client.search(q=query, mode="semantic", chapter=entry["chapter"], page=1)
         results = _dedupe_results(list(payload.get("results") or []))
         if results:
-            return results, {"query": query, "chapter": entry["chapter"], "mode": "semantic"}
+            return results, {"query": query, "chapter": entry["chapter"],
+                              "mode": payload.get("mode") or "semantic"}
     payload = client.search(q=query, mode="exact", page=1)
     results = _dedupe_results(list(payload.get("results") or []))
-    return results, {"query": query, "chapter": None, "mode": "exact"}
+    return results, {"query": query, "chapter": None,
+                      "mode": payload.get("mode") or "exact"}
 
 
 def build_paper(slug: str, *, variant: str) -> dict:

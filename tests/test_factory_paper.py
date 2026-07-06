@@ -290,6 +290,50 @@ class _DupQx(_FakeQx):
                 "degraded": False, "facets": {}}
 
 
+class _DegradedSemanticQx(_FakeQx):
+    """Tier-1 exact+chapter is thin (forces tier-2 semantic); the server then
+    DEGRADES the semantic request back to exact (SemanticUnavailable, mirroring
+    combinedDBQues search.py run_search) and reports "mode": "exact" in the
+    payload even though "semantic" was requested."""
+
+    def search(self, **kw):
+        type(self).last_kw = kw
+        if kw.get("mode") == "exact":
+            return {"results": _rows(2, prefix="e"), "total": 2, "page": 1,
+                     "page_size": 25, "mode": "exact", "degraded": False, "facets": {}}
+        # requested semantic, but the server degraded and served exact instead
+        return {"results": _rows(8, prefix="s"), "total": 8, "page": 1,
+                "page_size": 25, "mode": "exact", "degraded": True, "facets": {}}
+
+
+def test_meta_records_server_reported_mode_not_requested_mode(export_dir, tmp_path, monkeypatch):
+    """Codex review 31 addendum L: QX can degrade a requested semantic search back
+    to exact (SemanticUnavailable). The artifact's "mode" must reflect what the
+    server actually served, not what we asked for — otherwise the artifact JSON
+    lies ("mode": "semantic" when exact results were served)."""
+    _map(monkeypatch, tmp_path, {"circular-motion": {
+        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
+    monkeypatch.setattr(paper, "QxClient", _DegradedSemanticQx)
+    paper.build_paper("circular-motion", variant="paper")
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert data["mode"] == "exact"   # server-reported, NOT the requested "semantic"
+
+
+def test_meta_records_requested_mode_in_the_normal_undegraded_case(export_dir, tmp_path, monkeypatch):
+    """Companion to the degraded-mode test: when the server serves what was asked,
+    meta/artifact mode still records that mode correctly (no regression)."""
+    _map(monkeypatch, tmp_path, {"circular-motion": {
+        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
+    cls = _fresh_tiered({
+        ("exact", "Laws of Motion"): _rows(2, prefix="e"),
+        ("semantic", "Laws of Motion"): _rows(8, prefix="s"),
+    })
+    monkeypatch.setattr(paper, "QxClient", cls)
+    paper.build_paper("circular-motion", variant="paper")
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert data["mode"] == "semantic"
+
+
 def test_dedupe_drops_normalized_duplicates_keeps_order_and_shorts(export_dir, monkeypatch):
     monkeypatch.setattr(paper, "QxClient", _DupQx)
     res = paper.build_paper("circular-motion", variant="paper")
