@@ -25,6 +25,7 @@ class _FakeSDK:
 
 
 def test_configured_reflects_env(monkeypatch):
+    monkeypatch.delenv("SAMAGRA_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     assert llm_client.configured() is False
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-test")
@@ -32,18 +33,21 @@ def test_configured_reflects_env(monkeypatch):
 
 
 def test_missing_key_raises_runtimeerror(monkeypatch):
+    monkeypatch.delenv("SAMAGRA_LLM_PROVIDER", raising=False)
     monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
     with pytest.raises(RuntimeError):
         llm_client.LLMClient()
 
 
 def test_repr_never_leaks_key(monkeypatch):
+    monkeypatch.delenv("SAMAGRA_LLM_PROVIDER", raising=False)
     monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-SECRET-zzz")
     c = llm_client.LLMClient(sdk=_FakeSDK('{"items": []}'))
     assert "SECRET" not in repr(c)
 
 
 def test_generate_samadhan_builds_request_and_parses(monkeypatch):
+    monkeypatch.delenv("SAMAGRA_LLM_PROVIDER", raising=False)
     sdk = _FakeSDK('{"items": [{"concept": "c", "misconception": "m", '
                    '"correction": "k", "why": "w"}]}')
     c = llm_client.LLMClient(sdk=sdk, model="claude-opus-4-8")
@@ -58,6 +62,7 @@ def test_generate_samadhan_builds_request_and_parses(monkeypatch):
 
 
 def test_review_samadhan_uses_groundtruth_only_system(monkeypatch):
+    monkeypatch.delenv("SAMAGRA_LLM_PROVIDER", raising=False)
     sdk = _FakeSDK('{"verdicts": [{"idx": 0, "verdict": "ok", "rationale": "r"}]}')
     c = llm_client.LLMClient(sdk=sdk)
     out = c.review_samadhan([{"concept": "c", "misconception": "m",
@@ -96,7 +101,8 @@ def test_extract_json_error_never_leaks_content():
     assert "SECRET-PLAINTEXT" not in str(ei.value)
 
 
-def test_output_config_has_no_unknown_name_field():
+def test_output_config_has_no_unknown_name_field(monkeypatch):
+    monkeypatch.delenv("SAMAGRA_LLM_PROVIDER", raising=False)
     sdk = _FakeSDK('{"items": []}')
     c = llm_client.LLMClient(sdk=sdk)
     c.generate_samadhan({"title": "X"}, system="S")
