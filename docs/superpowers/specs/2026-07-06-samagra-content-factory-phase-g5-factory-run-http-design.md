@@ -1,8 +1,10 @@
 # SAMAGRA Content Factory — Phase G5: factory run over HTTP — Design
 
-**Status:** PROPOSED 2026-07-06 by the Chairman ("factory run over HTTP" direction + two
-forks ruled). The Chairman may still veto any individual ruling or ratify DEC-14 during
-implementation; this spec is the implementer's contract until then.
+**Status:** RATIFIED 2026-07-06 by the Chairman (explicit go — "1) ratify commit. 2) merge
+3) push." — at the merge gate, after the review gate closed: Codex review 30 GO + addendum
+GO, 4-lens adversarial review 3 MED remediated + re-verified, 666 pytest + 639 vitest
+green). DEC-14 is hereby ratified. Originally PROPOSED 2026-07-06 ("factory run over
+HTTP" direction + two forks ruled).
 **Author:** Claude (Fable 5), synthesizing the Chairman's ratified direction.
 **Depends on:** G1 publish boundary (`samagra/factory/publish/` + `publish.run`) · G3
 owner-gated `POST /api/factory/publish|unpublish` + the origin-auth gate

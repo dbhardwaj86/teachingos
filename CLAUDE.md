@@ -439,8 +439,9 @@
 > ratified ordering. The `/learn` public exposure remains a separate owner deploy step. **DEC-8 invariants
 > unchanged.**
 >
-> **✅ PHASE G5 (FACTORY RUN OVER HTTP — the Publish app's "Factory run" stepper) CODE COMPLETE on branch
-> `feature/factory-run-http`, built TDD, 2026-07-06.** G5 gives the Chairman a GUI path through the same
+> **✅ PHASE G5 (FACTORY RUN OVER HTTP — the Publish app's "Factory run" stepper) BUILT TDD + Codex-30-reviewed
+> (GO + addendum GO) + 4-lens-adversarially-reviewed (3 MED remediated + re-verified) + DEC-14 RATIFIED + MERGED
+> to `main` + PUSHED 2026-07-06** (branch `feature/factory-run-http`). G5 gives the Chairman a GUI path through the same
 > plan→approve-seed→build→publish recipe the CLI already runs, so a real throughput run no longer needs a
 > terminal. **Three new origin-gated endpoints** — `POST /api/factory/plan`, `POST /api/factory/approve-seed`,
 > `POST /api/factory/build` — added to `origin_auth._PROTECTED_POSTS` (now **9 protected POSTs** + the
@@ -460,30 +461,36 @@
 > `origin_auth.is_protected` docstring (stale "five mutating POSTs" wording, now tracks the real 9-entry set +
 > pattern route) and the concurrency-race test (was reusing one seed across its 5 iterations, so only iteration 1
 > exercised the true race window — now uses a distinct seed per iteration so dedup is proven on every pass, not
-> just the first). **Proposed DEC-14** (status **PROPOSED** — the spec's own Status header is authoritative and
-> still says PROPOSED; ratification is the Chairman's explicit act at the merge gate, where a dedicated ratify
-> commit will flip the spec header + trackers to RATIFIED, mirroring DEC-13's actual precedent — that commit has
-> not been made for G5. See the decisions
-> block below): (1) no new write mechanism — the three endpoints add zero logic to `run.py`; (2) the
+> just the first). **DEC-14 RATIFIED 2026-07-06** (the Chairman's explicit merge-gate go; the dedicated ratify
+> commit flipped the spec's Status header + trackers — the DEC-13 precedent. Post-review, invariant 3 is enforced
+> at BOTH HTTP gates: `approve-seed` skips llm/mcd children — commit `336d670` — and `build` 403s them): (1) no
+> new write mechanism — the three endpoints add zero logic to `run.py`; (2) the
 > never-automated publish gate is unchanged — the GUI is a second owner trigger beside the CLI, `build-all` is
 > client-side sugar over N single-assignment calls, never a server-side batch-write primitive; (3) the llm/mcd
 > lanes are structurally unreachable over HTTP (the `kind` refusal, not a maintained allowlist); (4) all three
 > POSTs are origin-gated, never public-prefix; (5) the student surface is untouched; (6) no migration, no
-> governance schema change. **Gate: 665 pytest** (664 passed, 1 skip = opt-in live-LLM smoke, 0 failures) **+ 639
-> vitest** (75 files); `tsc --noEmit` + `npm run build` green. **REMAINING BEFORE MERGE:** a dedicated Codex
-> pre-merge review of the three-endpoint write boundary (→ `docs/codex-reviews/30`) + a 4-lens adversarial final
-> review (firewall/write-mechanism · security · spec-fidelity · separate-entity) → remediate → `merge --ff-only`
-> → push. Spec `docs/superpowers/specs/2026-07-06-samagra-content-factory-phase-g5-factory-run-http-design.md`;
-> plan `docs/superpowers/plans/2026-07-06-samagra-content-factory-phase-g5-factory-run-http.md`. ⚠ **OWNER:** the
-> samagra server needs a restart post-merge before the 3 endpoints + the Factory-run panel exist live; the
-> Chairman should run one real GUI-driven recipe as the **first GUI-driven throughput run** (plan → approve →
-> build → publish, verified at `/learn`); `/learn` public exposure remains the separate owner deploy step.
+> governance schema change. **Gate: 667 pytest** (666 passed, 1 skip = opt-in live-LLM smoke, 0 failures) **+ 639
+> vitest** (75 files); `tsc --noEmit` + `npm run build` green. **Review gate CLOSED:** dedicated Codex pre-merge
+> review 30 = **GO** (0 findings, 6/6 DEC-14 invariants) **+ addendum GO** on the remediation delta (1 LOW —
+> pre-lock scan race in `approve-seed` — fixed TDD, 5/5 red pre-fix); 4-lens adversarial Workflow
+> (`wf_1a3c272d-9db`: firewall + separate-entity lenses clean; **3 MED confirmed** — approve-seed rubber-stamped
+> CLI-planned samadhan rows for the same seed · DEC-14 ratification overclaim in trackers · golden thread 1
+> under-proved — all **remediated + independently re-verified** by live exploit replay; golden thread 1 now
+> builds all 5 lanes + publishes via the G3 endpoint). Report
+> `docs/codex-reviews/30-g5-factory-run-http-premerge.report.md`. Spec
+> `docs/superpowers/specs/2026-07-06-samagra-content-factory-phase-g5-factory-run-http-design.md`;
+> plan `docs/superpowers/plans/2026-07-06-samagra-content-factory-phase-g5-factory-run-http.md`. ⚠ **OWNER:**
+> server restarted post-merge (the 3 endpoints + the Factory-run panel are live); the Chairman should run one
+> real GUI-driven recipe as the **first GUI-driven throughput run** (plan → approve → build → publish, verified
+> at `/learn`); `/learn` public exposure remains the separate owner deploy step. **Chairman directive
+> 2026-07-06:** SAMAGRA's question bank should use `C:\SandBox\claude_khanak_box\combinedDBQues` (the combined
+> question-DB project) as its source — wiring it in (today the paper/drill lanes + the Questions app read the QX
+> engine on :8783) is a future slice needing its own design + review.
 >
-> **NEXT: Phase G5 is CODE COMPLETE, review gate PENDING.** Immediate next action = the Codex pre-merge review +
-> 4-lens adversarial final review, then merge to `main` + push. After that: the first REAL GUI-driven throughput
-> run (Plan → Approve → Build → Publish, all clicked in the Publish app) followed by the first live run overall
-> if the CLI-driven one from the G3/G4 owner follow-ups hasn't happened yet. Phase F (the heavy async LLM lanes)
-> follows after the Phase G arc is fully merged, per DEC-9's ratified ordering. **DEC-8 invariants unchanged.**
+> **NEXT: Phase G5 is SHIPPED.** Immediate next action = the first REAL GUI-driven throughput run (Plan →
+> Approve → Build → Publish, all clicked in the Publish app, verified at `/learn`). Then: the combinedDBQues
+> question-bank rewire (Chairman directive above) and Phase F (the heavy async LLM lanes) per DEC-9's ratified
+> ordering. **DEC-8 invariants unchanged.**
 >
 > **✅ Direction-coherence decision (ratified 2026-06-21 by Deepak; amended by DEC-6 on 2026-06-22):** a coherence
 > audit found execution solid but the strategic direction drifting — "SAMAGRA OS" had re-introduced the OS-sized
@@ -523,9 +530,10 @@
 
 <!-- scribe:begin v1 -->
 ## TeachingOS memory — auto-generated by scribe; edit OUTSIDE this block only
-_Updated 2026-07-06T01:14. Source: agent session distillation._
-- (5) 2026-07-06 claude: TeachingOS project has separate SAMAGRA (admin/teacher) and student-facing versions. [TeachingOS, SAMAGRA, student-facing]
-- (5) 2026-07-06 claude: Phase G4 (adaptive student twin) was executed; Phase G5 has begun. [adaptive student twin, Phase G4, Phase G5]
+_Updated 2026-07-06T05:18. Source: agent session distillation._
+- (5) 2026-07-06 claude: Publishing recipe was added to SAMAGRA GUI for chairman to run on-demand. [publishing, SAMAGRA, GUI]
+- (5) 2026-07-06 claude: Phase G4 (adaptive student twin) was executed using subagent-driven development with 13 tasks. [G4, adaptive student twin, subagent-driven development]
+- (5) 2026-07-06 codex: A 4-lens adversarial review found 3 MEDs, leading to a remediation delta (3 commits). [adversarial review, MED, remediation]
 - (5) 2026-07-05 codex: Write endpoint POST /api/learn/progress uses JWT authentication with a token extracted from the Authorization header. [authentication, JWT]
 - (5) 2026-07-05 codex: Missing CSRF token validation on the POST /api/learn/progress endpoint; recommendation to integrate existing CSRF middleware. [CSRF, security]
 - (5) 2026-07-04 codex: Phase G3 adds the system's first inbound HTTP write surfaces to SAMAGRA. [Phase G3, write surfaces, HTTP]
@@ -557,7 +565,6 @@ _Updated 2026-07-06T01:14. Source: agent session distillation._
 - (5) 2026-06-21 claude: The session concluded with a plan to improve the app in a custom ralph loop and deploy to Cloudflare with a custom URL pointing to a localhost tunnel. [deployment, Cloudflare, localhost tunnel, ralph loop]
 - (5) 2026-06-21 claude: Munshi auth uses a single shared-secret cookie model: GET /login?k=<secret> sets the cookie; subsequent /api/ calls must carry it. [Munshi, authentication, cookie]
 - (5) 2026-06-21 claude: Immediate next step: update handoffs and project trackers plus summary (option B). [planning, project tracking]
-- (4) 2026-07-06 claude: There is no GUI for the student-facing version initially; user inquired about it. [student-facing, GUI]
-- (5) 2026-06-21 claude: Scope firewall and attention-ROI gate were implemented to prevent scope creep and maintain focus. [scope firewall, attention-ROI gate, project management]
+- (4) 2026-07-06 claude: Student-facing version has no GUI; it is a CLI tool. [student-facing, GUI]
 Deep recall: C:\SandBox\claude_box\memboxes\scribe\bin\scribe.cmd q "<topic>"
 <!-- scribe:end -->
