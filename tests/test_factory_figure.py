@@ -63,3 +63,13 @@ def test_targets_caps_at_figure_cap(monkeypatch):
 
 def test_figure_cap_default_is_six():
     assert figure._FIGURE_CAP == 6
+
+
+def test_targets_empty_when_cap_is_zero(monkeypatch):
+    monkeypatch.setattr(figure, "_FIGURE_CAP", 0)
+    assert figure._targets(_CHAPTER) == []
+
+
+def test_targets_empty_when_cap_is_negative(monkeypatch):
+    monkeypatch.setattr(figure, "_FIGURE_CAP", -1)
+    assert figure._targets(_CHAPTER) == []

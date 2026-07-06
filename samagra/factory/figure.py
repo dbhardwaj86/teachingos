@@ -33,6 +33,8 @@ def _targets(content: dict) -> list[dict]:
     Each target = {idx (1-based doc order), section, brief, prompt}. The prompt is
     the frozen preamble + a chapter/section frame + the brief verbatim (no LLM in
     the prompt-build step, no StyleSeed)."""
+    if _FIGURE_CAP <= 0:
+        return []
     title = str(content.get("title", "") or "")
     targets: list[dict] = []
     idx = 0
