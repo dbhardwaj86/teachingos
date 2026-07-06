@@ -342,6 +342,49 @@ def api_factory_approve_seed(payload: dict):
         return factory_run.approve_seed(seed_ref)
 
 
+@app.post("/api/factory/build")
+def api_factory_build(payload: dict):
+    # The GUI/network sibling of `samagra factory build`. Looks up the assignment's
+    # lane KIND before delegating (spec §4.3, F-G5-3): a "llm" (samadhan — needs an
+    # API key + incurs real generation cost) or "mcd" (seed — the ONE production
+    # write path, the C3 bridge-fold) lane is refused with 403 BEFORE run.build is
+    # ever called, so dispatch.run_seed / samadhan.generate_samadhan are structurally
+    # unreachable over HTTP. This is the one place this endpoint does more than
+    # parse-and-delegate.
+    assignment_id = (payload or {}).get("assignment_id")
+    if not isinstance(assignment_id, str) or not assignment_id.strip():
+        raise HTTPException(400, "assignment_id is required")
+    assignment_id = assignment_id.strip()
+
+    from ..factory.lines import LINES
+    from ..governance import store as gov_store
+    gov_store.ensure_tables()
+    conn = gov_store.connect_ro()
+    try:
+        assignment = next(
+            (a for a in gov_store.list_assignments(conn) if a["id"] == assignment_id),
+            None)
+    finally:
+        conn.close()
+    if assignment is None:
+        raise HTTPException(404, "unknown assignment")
+    spec = LINES.get(assignment["pipeline"])
+    if spec is None:
+        raise HTTPException(404, "assignment pipeline is not a recognized factory lane")
+    if spec.kind in ("llm", "mcd"):
+        raise HTTPException(
+            403,
+            f"the {spec.kind} lane ({assignment['pipeline']}) is CLI-only — "
+            "build it with `samagra factory build " + assignment_id + "` at a terminal")
+
+    from ..factory import run as factory_run
+    with _FACTORY_RUN_LOCK:
+        try:
+            return factory_run.build(assignment_id)
+        except ValueError as e:
+            raise HTTPException(409, str(e))
+
+
 # -- G3 PRATHAM student identity (PUBLIC — deliberately NOT in _PROTECTED_*) ------
 # /learn stays public-by-design (DEC-11); the session cookie is the only credential.
 # The login write touches ONLY pratham.db (physically isolated from governance.db,
