@@ -85,6 +85,17 @@ _REVIEW_SYSTEM = (
     "{\"verdicts\":[{\"idx\":<int>,\"verdict\":\"ok\"|\"error\",\"rationale\":<str>}]}."
 )
 
+_REVIEW_FIGURE_SYSTEM = (
+    "You are a physics diagram ground-truth checker. You are given an author's "
+    "figure BRIEF, the chapter SECTION text it belongs to, and a generated IMAGE. "
+    "TRY TO REFUTE the image: does it match the brief; are all labels spelled "
+    "correctly; is the geometry and physics right; do the vector directions and "
+    "magnitudes agree with the section? Judge ONLY against the brief, the section "
+    "text, and physics — NOT drawing style. Default to verdict 'error' when the "
+    "image is wrong, mislabelled, or unsupported by the brief. Return strict JSON "
+    "{\"verdicts\":[{\"idx\":0,\"verdict\":\"ok\"|\"error\",\"rationale\":<str>}]}."
+)
+
 
 def _provider_from_env() -> str:
     p = (os.environ.get("SAMAGRA_LLM_PROVIDER") or "anthropic").strip().lower()
@@ -209,6 +220,37 @@ class LLMClient:
                              "schema": schema, "strict": True}},
         )
 
+    def _create_vision(self, *, system_text, user_text, png_bytes, schema):
+        import base64
+        b64 = base64.b64encode(png_bytes).decode("ascii")
+        if self._provider == "anthropic":
+            return self._sdk.messages.create(
+                model=self._model,
+                max_tokens=_MAX_TOKENS,
+                thinking={"type": "adaptive"},
+                system=[{"type": "text", "text": system_text,
+                         "cache_control": {"type": "ephemeral"}}],
+                output_config={"format": {"type": "json_schema", "schema": schema}},
+                messages=[{"role": "user", "content": [
+                    {"type": "text", "text": user_text},
+                    {"type": "image", "source": {"type": "base64",
+                                                 "media_type": "image/png", "data": b64}},
+                ]}],
+            )
+        return self._sdk.responses.create(
+            model=self._model,
+            max_output_tokens=_MAX_TOKENS,
+            reasoning={"effort": self._effort},
+            input=[{"role": "system", "content": system_text},
+                   {"role": "user", "content": [
+                       {"type": "input_text", "text": user_text},
+                       {"type": "input_image",
+                        "image_url": f"data:image/png;base64,{b64}"},
+                   ]}],
+            text={"format": {"type": "json_schema", "name": "samagra_output",
+                             "schema": schema, "strict": True}},
+        )
+
     def _parse(self, response) -> dict:
         if self._provider == "anthropic":
             return _extract_json(response)
@@ -227,6 +269,18 @@ class LLMClient:
             user_text=("CHAPTER (ground truth):\n"
                        + json.dumps(chapter, ensure_ascii=False)
                        + "\n\nITEMS:\n" + json.dumps(items, ensure_ascii=False)),
+            schema=_REVIEW_SCHEMA)
+        return self._parse(resp)
+
+    def review_figure(self, png_bytes, brief, section_text) -> dict:
+        """DEC-8-firewalled vision reviewer for the figure lane. Anchored ONLY to
+        the chapter ground truth (the brief + section text + the image) — NEVER a
+        StyleSeed (there is no StyleSeed parameter: the firewall is structural)."""
+        resp = self._create_vision(
+            system_text=_REVIEW_FIGURE_SYSTEM,
+            user_text=("FIGURE BRIEF (ground truth):\n" + str(brief)
+                       + "\n\nSECTION TEXT:\n" + str(section_text)),
+            png_bytes=png_bytes,
             schema=_REVIEW_SCHEMA)
         return self._parse(resp)
 
