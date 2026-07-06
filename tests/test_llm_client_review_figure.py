@@ -84,3 +84,21 @@ def test_review_figure_openai_round_trip(monkeypatch):
     assert isinstance(sys_text, str) and "diagram" in sys_text.lower()
     blob = json.dumps(kw["input"], ensure_ascii=False)
     assert base64.b64encode(_PNG).decode("ascii") in blob
+
+
+def test_openai_vision_image_part_matches_sdk_typeddict(monkeypatch):
+    # Pin the input_image content part's shape against the INSTALLED openai SDK's
+    # TypedDict, so a silent SDK contract drift breaks here, not live. The SDK
+    # declares `detail` Required (the server defaults it, but house style =
+    # explicit knobs), so we send it explicitly and assert it.
+    from openai.types.responses import ResponseInputImageParam
+
+    monkeypatch.setenv("SAMAGRA_LLM_PROVIDER", "openai")
+    sdk = _FakeOpenAISDK(_VERDICTS)
+    LLMClient(sdk=sdk).review_figure(_PNG, "brief text", "section text")
+    kw = sdk.calls[0]
+    user_content = kw["input"][1]["content"]
+    part = next(p for p in user_content if p.get("type") == "input_image")
+    assert set(part.keys()) <= set(ResponseInputImageParam.__annotations__.keys())
+    assert part["detail"] == "auto"
+    assert part["type"] == "input_image"

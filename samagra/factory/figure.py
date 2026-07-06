@@ -165,9 +165,14 @@ def _gallery_html(content: dict, figures: list[dict]) -> str:
 
 def build_figures(slug, *, image_client=None, vision_client=None) -> dict:
     """Generate, vision-review (fail-closed), and write the figure gallery. Raises
-    FileNotFoundError (no chapter) BEFORE any write; raises (no partial result) if
-    ANY image call fails — build() rolls that back retryably. Clears stale
-    fig-*.png before writing the new set so a shorter rebuild leaves no orphans."""
+    FileNotFoundError (no chapter) BEFORE any write; raises (no partial RESULT) if
+    ANY image call fails — build() rolls that back retryably. "No partial return"
+    is a contract on the RETURN VALUE, not the disk: fig-*.png files written before
+    a mid-loop failure PERSIST across the crash/raise and are cleaned only by the
+    next build_figures call for the same slug (the retry path's stale-clear below);
+    the manifest JSON and gallery HTML are never written on a failed build. Clears
+    stale fig-*.png before writing the new set so a shorter rebuild leaves no
+    orphans."""
     import base64 as _b64
 
     content = render.load_chapter(slug)             # ground truth (raises if absent)

@@ -244,7 +244,10 @@ class LLMClient:
             input=[{"role": "system", "content": system_text},
                    {"role": "user", "content": [
                        {"type": "input_text", "text": user_text},
-                       {"type": "input_image",
+                       # `detail` is Required in the SDK's ResponseInputImageParam
+                       # TypedDict (the server defaults it) — explicit knob, pinned
+                       # by tests/test_llm_client_review_figure.py.
+                       {"type": "input_image", "detail": "auto",
                         "image_url": f"data:image/png;base64,{b64}"},
                    ]}],
             text={"format": {"type": "json_schema", "name": "samagra_output",
