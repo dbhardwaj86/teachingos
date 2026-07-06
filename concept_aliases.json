@@ -2,6 +2,7 @@
   "version": 1,
   "note": "Curated chapter<->concept normalization. Deltas applied ON TOP of the deterministic FTS base. by_chapter is keyed on textbook chapter slug; add/remove values are QX physics concept labels (case-insensitive).",
   "by_chapter": {
-    "lom-and-pseudo-force": { "add": ["newton's laws"], "remove": [] }
+    "lom-and-pseudo-force": { "add": ["newton's laws"], "remove": [] },
+    "wave-optics": { "add": ["polarisation"], "remove": [] }
   }
 }
