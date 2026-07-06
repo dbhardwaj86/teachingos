@@ -330,6 +330,18 @@ def api_factory_plan(payload: dict):
     return {"proposals": proposals}
 
 
+@app.post("/api/factory/approve-seed")
+def api_factory_approve_seed(payload: dict):
+    # The GUI/network sibling of `samagra factory approve-seed` — the PER-SEED
+    # BATCH gate (fork 3, Phase 1): flips every in-review child of this seed to
+    # approved in one explicit owner click. Never a silent auto-approve; distinct
+    # click from Plan and from Build (F-G5-2).
+    seed_ref = _parse_seed_ref_body(payload)
+    from ..factory import run as factory_run
+    with _FACTORY_RUN_LOCK:
+        return factory_run.approve_seed(seed_ref)
+
+
 # -- G3 PRATHAM student identity (PUBLIC — deliberately NOT in _PROTECTED_*) ------
 # /learn stays public-by-design (DEC-11); the session cookie is the only credential.
 # The login write touches ONLY pratham.db (physically isolated from governance.db,
