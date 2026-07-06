@@ -43,7 +43,19 @@ _TEX_RE = re.compile(r'data-tex="([^"]*)"')
 
 def _projection(html: str) -> str:
     """Dedup key: visible text + embedded formula sources. data-tex attribute
-    values are appended so questions differing only in math never collide."""
+    values are appended so questions differing only in math never collide.
+
+    Deliberately excludes <img> src/alt (Codex review 31 addendum M, refuted
+    with evidence): the same question captured from different source papers
+    carries different per-paper asset paths (src), so two truly-identical
+    rows would fail to collapse if src were part of the key; alt text is a
+    generic placeholder ("fig-0001") that adds no discriminating signal. A
+    live census (127 rows / 5 chapters) found EVERY src/alt-only collision
+    (25 of them) was a true duplicate — 23 the same question re-captured with
+    per-paper asset paths, 2 the same question with the figure placed
+    differently in the markup. This mirrors combinedDBQues's own dupes.py
+    text_projection, which is also text-only (figure-blind). So this is a
+    deliberate design choice, not a bug to fix."""
     tex = " ".join(_TEX_RE.findall(html))
     text = _TAG_RE.sub(" ", html)
     return " ".join((text + " " + tex).split()).lower()

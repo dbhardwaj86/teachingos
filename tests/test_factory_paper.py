@@ -415,3 +415,33 @@ def test_projection_appends_data_tex_sources():
     assert paper._projection(a) != paper._projection(b)
     assert "r=mv/(qb)" in paper._projection(a)
     assert "r=2mv/(qb)" in paper._projection(b)
+
+
+def test_dedupe_treats_figure_only_variants_as_duplicates_by_design(export_dir, monkeypatch):
+    """Codex review 31 addendum M refuted with live evidence: _projection deliberately
+    excludes <img> src/alt, so two rows with identical visible text + identical
+    data-tex but DIFFERENT figure src/alt collide (deduped to one). A 127-row / 5-
+    chapter live census found every src/alt-only collision (25) was a true
+    duplicate — 23 the same question re-captured with per-paper asset paths (src
+    legitimately differs across source papers for the identical question), 2 the
+    same question with the figure placed differently. Including src would BREAK
+    true-duplicate collapse across papers, so this figure-blindness is BY DESIGN,
+    not a bug — this test pins it, mirroring combinedDBQues's own dupes.py
+    text_projection (also text-only)."""
+    body_with_fig_a = (_MATH_PROSE.format(tex="r=mv/(qB)")
+                        .replace('id=eq1"', 'id=eq1&amp;paper=alpha"'))
+    body_with_fig_b = (_MATH_PROSE.format(tex="r=mv/(qB)")
+                        .replace('id=eq1"', 'id=eq1&amp;paper=beta"'))
+    assert body_with_fig_a != body_with_fig_b   # different src -> different raw html
+
+    class _FigureVariantQx(_FakeQx):
+        def search(self, **kw):
+            return {"results": [_q("f1", body_with_fig_a), _q("f2", body_with_fig_b)],
+                    "total": 2, "page": 1, "page_size": 25, "mode": "exact",
+                    "degraded": False, "facets": {}}
+
+    monkeypatch.setattr(paper, "QxClient", _FigureVariantQx)
+    res = paper.build_paper("circular-motion", variant="paper")
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert [q["q_uid"] for q in data["questions"]] == ["f1"]   # f2 collapsed into f1
+    assert res["questions"] == 1
