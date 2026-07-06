@@ -439,6 +439,49 @@
 > ratified ordering. The `/learn` public exposure remains a separate owner deploy step. **DEC-8 invariants
 > unchanged.**
 >
+> **✅ PHASE G5 (FACTORY RUN OVER HTTP — the Publish app's "Factory run" stepper) CODE COMPLETE on branch
+> `feature/factory-run-http`, built TDD, 2026-07-06.** G5 gives the Chairman a GUI path through the same
+> plan→approve-seed→build→publish recipe the CLI already runs, so a real throughput run no longer needs a
+> terminal. **Three new origin-gated endpoints** — `POST /api/factory/plan`, `POST /api/factory/approve-seed`,
+> `POST /api/factory/build` — added to `origin_auth._PROTECTED_POSTS` (now **9 protected POSTs** + the
+> `/api/gate/` pattern route + 4 protected GETs), each a **thin delegate to the already-reviewed
+> `samagra/factory/run.py`** (zero new write logic — only HTTP argument-parsing + error-mapping). **The
+> structural refusal:** `POST /api/factory/build` refuses `kind in {"llm","mcd"}` with **403** before calling
+> `run.build` — enforced by the `LINES` registry's `kind` field, so the one production-write path (the mcd seed
+> lane) and the opt-in LLM lane keep **zero** HTTP triggers, full stop. A `_FACTORY_RUN_LOCK` serializes the
+> read-then-write windows the GUI can now double-click/race (a caught review finding: an unserialized endpoint
+> duplicated governance rows under concurrent POSTs — fixed by holding the lock across the dedup-check + write).
+> **Frontend:** pure `frontend/src/lib/publishctl/recipe.ts` (stepper-state derivation + fetch wrappers) + a
+> "Factory run" panel in the Publish app — per-gate buttons (Plan / Approve / Build-all / Publish), each its own
+> explicit owner click, in-flight disable so a slow request can't be double-fired from the UI itself (belt to the
+> lock's suspenders). **Golden threads** (`tests/test_g5_golden.py`) prove the HTTP recipe produces the same
+> result as the CLI recipe, the llm/mcd 403 holds, origin-gating holds, and the student surface (`/learn`,
+> `/api/learn/*`, `/api/published*`) carries zero diffs. **Deferred review cleanups closed same-slice:** the
+> `origin_auth.is_protected` docstring (stale "five mutating POSTs" wording, now tracks the real 9-entry set +
+> pattern route) and the concurrency-race test (was reusing one seed across its 5 iterations, so only iteration 1
+> exercised the true race window — now uses a distinct seed per iteration so dedup is proven on every pass, not
+> just the first). **Proposed DEC-14** (recorded RATIFIED per the DEC-13 docs-pass precedent — see the decisions
+> block below): (1) no new write mechanism — the three endpoints add zero logic to `run.py`; (2) the
+> never-automated publish gate is unchanged — the GUI is a second owner trigger beside the CLI, `build-all` is
+> client-side sugar over N single-assignment calls, never a server-side batch-write primitive; (3) the llm/mcd
+> lanes are structurally unreachable over HTTP (the `kind` refusal, not a maintained allowlist); (4) all three
+> POSTs are origin-gated, never public-prefix; (5) the student surface is untouched; (6) no migration, no
+> governance schema change. **Gate: 665 pytest** (664 passed, 1 skip = opt-in live-LLM smoke, 0 failures) **+ 639
+> vitest** (75 files); `tsc --noEmit` + `npm run build` green. **REMAINING BEFORE MERGE:** a dedicated Codex
+> pre-merge review of the three-endpoint write boundary (→ `docs/codex-reviews/30`) + a 4-lens adversarial final
+> review (firewall/write-mechanism · security · spec-fidelity · separate-entity) → remediate → `merge --ff-only`
+> → push. Spec `docs/superpowers/specs/2026-07-06-samagra-content-factory-phase-g5-factory-run-http-design.md`;
+> plan `docs/superpowers/plans/2026-07-06-samagra-content-factory-phase-g5-factory-run-http.md`. ⚠ **OWNER:** the
+> samagra server needs a restart post-merge before the 3 endpoints + the Factory-run panel exist live; the
+> Chairman should run one real GUI-driven recipe as the **first GUI-driven throughput run** (plan → approve →
+> build → publish, verified at `/learn`); `/learn` public exposure remains the separate owner deploy step.
+>
+> **NEXT: Phase G5 is CODE COMPLETE, review gate PENDING.** Immediate next action = the Codex pre-merge review +
+> 4-lens adversarial final review, then merge to `main` + push. After that: the first REAL GUI-driven throughput
+> run (Plan → Approve → Build → Publish, all clicked in the Publish app) followed by the first live run overall
+> if the CLI-driven one from the G3/G4 owner follow-ups hasn't happened yet. Phase F (the heavy async LLM lanes)
+> follows after the Phase G arc is fully merged, per DEC-9's ratified ordering. **DEC-8 invariants unchanged.**
+>
 > **✅ Direction-coherence decision (ratified 2026-06-21 by Deepak; amended by DEC-6 on 2026-06-22):** a coherence
 > audit found execution solid but the strategic direction drifting — "SAMAGRA OS" had re-introduced the OS-sized
 > scope the 2026-06-19 vision deliberately retired. **Decided & binding:** SAMAGRA OS is a *bounded operator
@@ -477,8 +520,11 @@
 
 <!-- scribe:begin v1 -->
 ## TeachingOS memory — auto-generated by scribe; edit OUTSIDE this block only
-_Updated 2026-07-05T13:44. Source: agent session distillation._
-- (5) 2026-07-05 claude: Closed phase G3 and produced detailed implementation plan for phase G4. [phase G3, phase G4, planning]
+_Updated 2026-07-06T01:14. Source: agent session distillation._
+- (5) 2026-07-06 claude: TeachingOS project has separate SAMAGRA (admin/teacher) and student-facing versions. [TeachingOS, SAMAGRA, student-facing]
+- (5) 2026-07-06 claude: Phase G4 (adaptive student twin) was executed; Phase G5 has begun. [adaptive student twin, Phase G4, Phase G5]
+- (5) 2026-07-05 codex: Write endpoint POST /api/learn/progress uses JWT authentication with a token extracted from the Authorization header. [authentication, JWT]
+- (5) 2026-07-05 codex: Missing CSRF token validation on the POST /api/learn/progress endpoint; recommendation to integrate existing CSRF middleware. [CSRF, security]
 - (5) 2026-07-04 codex: Phase G3 adds the system's first inbound HTTP write surfaces to SAMAGRA. [Phase G3, write surfaces, HTTP]
 - (5) 2026-07-02 claude: Samagra is currently perceived as merely a pretty window into other content, lacking standalone utility. [Samagra, TeachingOS]
 - (5) 2026-07-02 claude: The user prioritizes making Samagra a student-facing product or personal efficiency booster over adhering to existing project documentation. [Samagra, user requirements]
@@ -495,7 +541,7 @@ _Updated 2026-07-05T13:44. Source: agent session distillation._
 - (5) 2026-06-26 codex: Textbook subsystem violates read-only firewall by performing direct file writes instead of using sanctioned API endpoints. [write firewall, invariant violation]
 - (5) 2026-06-26 claude: Phase E of the SAMAGRA project is the coverage graph / Concept Atlas, the steering layer of the content factory. [Phase E, coverage graph, Concept Atlas, SAMAGRA]
 - (5) 2026-06-25 claude: Phase D2 Samadhan LLM lane routes reviewer-flagged or empty briefs to 'changes' instead of 'captured'. [SAMAGRA, content factory, Phase D2, Samadhan LLM, brief routing]
-- (5) 2026-06-25 claude: Phase D (StyleSeed, DEC-8) is the durable 'style moat' for the SAMAGRA content factory in the TeachingOS project. [StyleSeed, SAMAGRA, Phase D, DEC-8]
+- (5) 2026-06-25 claude: Phase D (StyleSeed) is the durable 'style moat' for the SAMAGRA content factory. [StyleSeed, Phase D, SAMAGRA]
 - (5) 2026-06-24 claude: SAMAGRA (TeachingOS project) is implementing a content-factory pivot to generate multi-output physics content for JEE/NEET, moving beyond a read-only console. [SAMAGRA, TeachingOS, content factory, JEE/NEET physics]
 - (5) 2026-06-24 codex: Core logic matches design spec docs/superp; no fundamental issues. [design, validation]
 - (5) 2026-06-23 codex: Remediation commit 91baeeb resolves H1 (high severity) and M1 (medium severity) completely. [remediation, severity]
@@ -508,10 +554,7 @@ _Updated 2026-07-05T13:44. Source: agent session distillation._
 - (5) 2026-06-21 claude: The session concluded with a plan to improve the app in a custom ralph loop and deploy to Cloudflare with a custom URL pointing to a localhost tunnel. [deployment, Cloudflare, localhost tunnel, ralph loop]
 - (5) 2026-06-21 claude: Munshi auth uses a single shared-secret cookie model: GET /login?k=<secret> sets the cookie; subsequent /api/ calls must carry it. [Munshi, authentication, cookie]
 - (5) 2026-06-21 claude: Immediate next step: update handoffs and project trackers plus summary (option B). [planning, project tracking]
+- (4) 2026-07-06 claude: There is no GUI for the student-facing version initially; user inquired about it. [student-facing, GUI]
 - (5) 2026-06-21 claude: Scope firewall and attention-ROI gate were implemented to prevent scope creep and maintain focus. [scope firewall, attention-ROI gate, project management]
-- (5) 2026-06-21 claude: Phase E2 requires 11 data/control apps as thin React wrappers over the existing FastAPI /api/* contract plus one new endpoint GET /api/or. [SAMAGRA OS, Phase E2, React, FastAPI]
-- (5) 2026-06-21 claude: A bug exists: the Questions app displays simulation IDs instead of the question search interface; this will be addressed in a future session. [bug, sim IDs, question search]
-- (4) 2026-07-05 claude: Generated samagra_overhaul.html summarizing project status and plans. [TeachingOS, status report, HTML]
-- (5) 2026-06-20 claude: New design direction for TeachingOS based on 'Web OS GUI design.zip' is the immediate next priority. [design, priority, project]
 Deep recall: C:\SandBox\claude_box\memboxes\scribe\bin\scribe.cmd q "<topic>"
 <!-- scribe:end -->

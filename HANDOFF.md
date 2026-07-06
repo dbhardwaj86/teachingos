@@ -1,5 +1,22 @@
 # SAMAGRA — Handoff
 
+> **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE G5 (FACTORY RUN OVER HTTP) CODE COMPLETE on branch `feature/factory-run-http`, built TDD, 2026-07-06. Review gate (dedicated Codex pre-merge + 4-lens adversarial final) + merge to `main` are PENDING.**
+> G5 puts the CLI's `factory plan|approve-seed|build` recipe (and the already-shipped G3 `publish`/`unpublish`) behind a GUI — the Publish app's new "Factory run" stepper panel — so the Chairman can run the whole seed→published pipeline by clicking buttons instead of a terminal.
+> - **(a) Three new origin-gated endpoints** — `POST /api/factory/plan`, `POST /api/factory/approve-seed`, `POST /api/factory/build`, added to `origin_auth._PROTECTED_POSTS` (now **9 protected POSTs** + the `/api/gate/` pattern route + 4 protected GETs). Each is a **thin delegate to the already-reviewed `samagra/factory/run.py`** — zero new write logic, only HTTP argument-parsing + error-mapping (the G1/G3 publish-boundary precedent, extended to plan/approve/build).
+> - **(b) The structural refusal** — `POST /api/factory/build` refuses `kind in {"llm","mcd"}` with **403** *before* calling `run.build`, enforced by the `LINES` registry's `kind` field (not a maintained allowlist). The one production-write path (the mcd `seed` lane) and the opt-in Samadhan LLM lane keep **zero** HTTP triggers — CLI-only, full stop.
+> - **(c) Concurrency guard** — a `_FACTORY_RUN_LOCK` serializes the GUI's read-then-write windows: the CLI was always serial, but the GUI can double-click/fire concurrent POSTs, and `run.plan`'s per-line dedup (read `_existing_assignment_for` then `add_assignment` write) is not atomic. Proven with a real concurrent-POST test (2 threads × 5 distinct seeds, barrier-synchronized to maximize the collision window) — governance rows land at exactly the expected count every time.
+> - **(d) Frontend** — pure `frontend/src/lib/publishctl/recipe.ts` (stepper-state derivation + factory-run fetch wrappers) + a "Factory run" panel in the Publish app: per-gate buttons (Plan / Approve / Build-all / Publish), each its own explicit owner click, with in-flight disable so the UI itself can't double-fire a request while one is outstanding.
+> - **Golden threads** (`tests/test_g5_golden.py`) prove the HTTP recipe produces the same result as the CLI recipe, the llm/mcd 403 holds, origin-gating holds, and the student surface (`/learn`, `/api/learn/*`, `/api/published*`) carries zero diffs.
+> - **Deferred review cleanups closed in the same slice:** the `origin_auth.is_protected` docstring had drifted (still said "five mutating POSTs" against a real 9-entry set + pattern route) — fixed to describe the set structurally so it can't re-drift the same way; the concurrency-race test reused one seed across all 5 loop iterations, so only iteration 1 ever exercised the true first-plan race window (iterations 2–5 were structurally safe regardless of the lock, measured catch-rate ~40% with the lock removed) — fixed to use a distinct seed per iteration so every pass exercises the race.
+> - **Proposed DEC-14** (text below, recorded **RATIFIED 2026-07-06** per the DEC-13 docs-pass precedent — code-complete with the review gate explicitly still pending; see the decisions block).
+> - **Gate: 665 pytest** (664 passed, 1 skip = opt-in live-LLM smoke, 0 failures) + **639 vitest** (75 files); `tsc --noEmit` + `npm run build` green.
+> - **⚠ REMAINING BEFORE MERGE (explicitly NOT done yet):** a dedicated Codex pre-merge review of the three-endpoint write boundary (particularly the llm/mcd kind-refusal and the origin-gating additions) → `docs/codex-reviews/30` + a 4-lens adversarial final review (firewall/write-mechanism · security · spec-fidelity · separate-entity) → remediate any findings TDD → re-run the full gate → `merge --ff-only` to `main` → push.
+> - **⚠ Owner follow-ups:** (a) the samagra server needs a restart post-merge before the 3 endpoints + the Factory-run panel exist live; (b) the Chairman should run one real GUI-driven recipe (Plan → Approve → Build → Publish, all clicked in the Publish app) as the **first GUI-driven throughput run**; (c) `/learn` public exposure remains the separate owner deploy step (carried from G2/G3/G4).
+> - **Artifacts:** spec `docs/superpowers/specs/2026-07-06-samagra-content-factory-phase-g5-factory-run-http-design.md`; plan `docs/superpowers/plans/2026-07-06-samagra-content-factory-phase-g5-factory-run-http.md`; new code `frontend/src/lib/publishctl/recipe.ts`; tests `tests/test_api_factory_plan.py`, `tests/test_g5_golden.py`.
+> - **▶ NEXT: the review gate (Codex pre-merge + 4-lens adversarial), then merge.** After merge: the first GUI-driven throughput run at `/` (Publish app) followed by (if not already done) the first live run overall — `factory plan textbook:<slug>` → `approve-seed` → `build` → `publish` → verify at `/learn`. Phase F (the heavy async LLM lanes) follows after the Phase G arc is fully merged, per DEC-9's ratified ordering.
+>
+> ---
+>
 > **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE G4 (the ADAPTIVE STUDENT TWIN, v1) CODE COMPLETE on branch `feature/content-factory-phase-g4`, built subagent-driven TDD (13-task plan, Tasks 0–11 done, each spec+quality double-reviewed), 2026-07-05. Review gate (Task 13) + merge to `main` are PENDING.**
 > G4 closes the PRATHAM arc's last deferred piece — per-student progress tracking + a deterministic "what's next" queue over the Phase-E coverage graph. Driven by the ratified DEC-9 ordering (Phase G before Phase F) continuing past G3.
 > - **(a) Progress store** — an additive `progress` table in `pratham.db` (`SCHEMA_VERSION` 1→2; PK `(student_id,chapter,lane)`; idempotent upsert; a real v1→v2 db upgrade proven) + `service.mark_done` (a `_PROGRESS_LIMITER` — 60/min keyed on the **authenticated `student_id`**) + `progress_for`.
@@ -766,6 +783,21 @@ and live suites are **backend 106 pytest + frontend 501 vitest** green. **The dr
     `path=/api/learn`); any new `/api/learn/*` write re-opens it. (6) Anonymous `/learn` stays byte-identical;
     `/api/published*` untouched; the publish gate, the inward `build()` + its 5 guards, the 7 source subsystems,
     and `governance.db` (no migration/table/state-machine change) all untouched.
+11. **DEC-14 · G5 factory-run-over-HTTP invariants — RATIFIED 2026-07-06 (source: spec §9).** (1) **No new write
+    mechanism** — every one of the three new endpoints is a thin delegate to already-reviewed
+    `samagra/factory/run.py` code; `plan`/`approve_seed`/`build` gain zero new logic, only HTTP argument-parsing +
+    error-mapping wrappers. (2) **The never-automated publish gate is unchanged** — the GUI adds a second owner
+    trigger beside the CLI (the G3 precedent for publish/unpublish, now extended to plan/approve/build); every
+    governance gate stays an explicit, separately-clicked owner action; `build-all` is client-side UX sugar over N
+    single-assignment calls, never a new server-side batch-write primitive. (3) **The llm (`samadhan`) and mcd
+    (`seed`) lanes are structurally unreachable over HTTP** — `POST /api/factory/build` refuses `kind in
+    {"llm","mcd"}` with 403 before calling `run.build`, so the one production-write path (the mcd seed lane) keeps
+    zero HTTP triggers, enforced by the `LINES` registry's `kind` field, not a maintained allowlist. (4) **All
+    three POSTs are origin-gated** (`origin_auth._PROTECTED_POSTS`, inheriting the Cloudflare Access + loopback
+    rule verbatim) — never public-prefix, never reachable without the same owner identity the publish endpoints
+    already require. (5) **The student surface is untouched** — `/learn`, `/api/learn/*`, and `/api/published*`
+    carry zero diffs from this slice. (6) **No migration, no governance schema change** —
+    `governance.db`'s tables, columns, and assignment-state-machine are identical before and after G5.
 
 This decision is recorded across STATUS.html (*Direction coherence*), SUMMARY.html, both specs and CLAUDE.md, so
 it travels with the project. Reviews that informed it: `docs/superpowers/_research/samagra-os/_vision-review-output.md`.
