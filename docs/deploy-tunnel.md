@@ -242,11 +242,17 @@ Also remove the Access application in the Zero Trust dashboard if retiring the h
   SAMAGRA_QX_CONTENT_DB=C:\SandBox\gpt_box\gpt-extract-ques\qx\qx_content.sqlite
   ```
   Fail-visibility note: paper/drill retrieval's chapter-scoped tiers (exact
-  and semantic, both faceted on `chapter_map.json`'s display name) will no-op
-  against the old engine, whose chapter-facet vocabulary differs from
-  combinedDBQues's — they return 0 hits and the legacy tier-3 fallback (a
-  plain exact query, no chapter facet) automatically takes over. Pre-Slice-R
-  retrieval semantics come back with zero code changes.
+  and semantic, both faceted on `chapter_map.json`'s display name) are keyed
+  on that display name. For most mapped chapters the display name is absent
+  from the old engine's chapter-facet vocabulary, so those tiers return 0
+  hits and retrieval falls through to the legacy tier-3 fallback (a plain
+  exact query, no chapter facet) — pre-Slice-R behavior restored with zero
+  code changes. A handful of display names (Current Electricity, Laws of
+  Motion, Gravitation, Thermodynamics, Electromagnetic Induction,
+  Electromagnetic Waves) also exist in the old engine's own vocabulary, so
+  those chapters instead get old-engine chapter-scoped retrieval at tiers
+  1-2 — still deterministic and answer-free, just not byte-identical to
+  pre-Slice-R output.
   See `.env.example`'s QX sidecar block for the full commented recipe.
 
 ### LAN demo mode (Chairman ruling 2026-07-06)
