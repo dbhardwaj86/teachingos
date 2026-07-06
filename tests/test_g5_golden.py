@@ -29,8 +29,45 @@ def _fresh_world(tmp_path, monkeypatch):
     monkeypatch.setattr("samagra.lectures.export.export_one", fake_export_one)
 
 
+def _stub_deck(monkeypatch, tmp_path):
+    # Mirrors tests/test_factory_run.py's _stub_deck: the deck engine is stubbed at
+    # its own module boundary (samagra.factory.deck.build_deck), not the lecture
+    # exporter, so the deck lane can build in this temp world too.
+    def fake_build_deck(slug):
+        out = tmp_path / f"{slug}-deck.html"
+        out.write_text(f"<h1>{slug} deck</h1>", encoding="utf-8")
+        return {"variant": "deck", "html": str(out),
+                "json": str(tmp_path / f"{slug}-deck.json"), "cards": 4}
+    monkeypatch.setattr("samagra.factory.deck.build_deck", fake_build_deck)
+
+
+def _stub_paper(monkeypatch, tmp_path):
+    # Mirrors tests/test_factory_run.py's _stub_paper: the QX-backed paper/drill
+    # engine is stubbed at samagra.factory.paper.build_paper (both lanes share this
+    # one function, dispatched by variant), writing an answer-free html + json pair
+    # so dispatch.validate_product's answer-leak scan passes for real.
+    def fake_build_paper(slug, *, variant):
+        out = tmp_path / f"{slug}-{variant}.html"
+        out.write_text(f'<h1>{slug} {variant}</h1><div class="stem">q</div>', encoding="utf-8")
+        js = tmp_path / f"{slug}-{variant}.json"
+        js.write_text(f'{{"variant":"{variant}","questions":[{{"html":"<div class=\\"stem\\">q</div>"}}]}}',
+                      encoding="utf-8")
+        return {"variant": variant, "html": str(out), "json": str(js), "questions": 3}
+    monkeypatch.setattr("samagra.factory.paper.build_paper", fake_build_paper)
+
+
 def test_golden_http_recipe_matches_deterministic_lane_build(tmp_path, monkeypatch):
+    """Spec §7 thread 1's actual promise: plan -> approve-seed -> build ONCE PER
+    PROPOSED ASSIGNMENT -> publish, matching the CLI end to end. The single-lane
+    (revision) assertions below prove the double-approve/double-build idempotency;
+    the extension after them builds every remaining proposed lane (deck/paper/drill
+    stubbed at their own engine boundary, mirroring tests/test_factory_run.py) and
+    publishes via the G3 HTTP endpoint, then verifies /api/published lists the
+    chapter with all 5 built lanes — the golden proof of the WHOLE recipe, not just
+    its first step."""
     _fresh_world(tmp_path, monkeypatch)
+    _stub_deck(monkeypatch, tmp_path)
+    _stub_paper(monkeypatch, tmp_path)
     c = TestClient(api_app.app)
     seed_ref = "textbook:circular-motion"
 
@@ -62,6 +99,27 @@ def test_golden_http_recipe_matches_deterministic_lane_build(tmp_path, monkeypat
     # never a silent double-build or a 500.
     again = c.post("/api/factory/build", json={"assignment_id": rev["assignment_id"]})
     assert again.status_code == 409
+
+    # ---- thread 1 extension (review MED): build every remaining proposed lane,
+    # then publish over HTTP (the G3 endpoint) and verify the corpus is readable. ----
+    remaining = [p for p in proposals if p["line"] != "revision"]
+    assert {p["line"] for p in remaining} == {"lecture", "deck", "paper", "drill"}
+    built_lines = {"revision"}
+    for p in remaining:
+        r = c.post("/api/factory/build", json={"assignment_id": p["assignment_id"]})
+        assert r.status_code == 200, (p["line"], r.json())
+        assert r.json()["line"] == p["line"]
+        assert r.json()["artifact_ref"]
+        built_lines.add(p["line"])
+    assert built_lines == {"revision", "lecture", "deck", "paper", "drill"}   # all 5
+
+    pub_resp = c.post("/api/factory/publish", json={"chapter": "circular-motion"})
+    assert pub_resp.status_code == 200
+    published = set(pub_resp.json()["result"]["published"])
+    assert published == built_lines
+
+    manifest = c.get("/api/published").json()
+    assert "circular-motion" in manifest["chapters"]
 
 
 def test_golden_llm_and_mcd_unreachable_over_http(tmp_path, monkeypatch):
