@@ -4,6 +4,7 @@ migration). Offline: fake image + fake vision clients, isolated stores. Mirrors
 tests/test_g4_golden.py's governance-byte discipline."""
 from __future__ import annotations
 
+import base64
 import hashlib
 from pathlib import Path
 
@@ -15,9 +16,12 @@ from samagra.factory.publish import read as pub_read, run as pub_run
 from samagra.governance import store
 
 
+_FAKE_PNG_BYTES = b"\x89PNG\r\n\x1a\nGOLDEN"
+
+
 class _FakeImg:
     def generate(self, prompt):
-        return b"\x89PNG\r\n\x1a\nGOLDEN"
+        return _FAKE_PNG_BYTES
 
 
 class _FakeVis:
@@ -79,12 +83,16 @@ def test_golden_publish_compat_on_gallery_html(env, monkeypatch):
     assert run.build(props[0]["assignment_id"])["status"] == "captured"
 
     pub = pub_run.publish("circular-motion", lanes=["figure"])
-    assert pub["chapter"] == "circular-motion" or pub.get("published")   # publish succeeded
+    assert pub["chapter"] == "circular-motion"       # publish succeeded
 
     art = pub_read.resolve_artifact("circular-motion", "figure", "html")
     assert art is not None
     assert art["media_type"].startswith("text/html")
     # sha-verified serving: the resolver re-hashes the bytes against the manifest.
     assert art["sha256"] == hashlib.sha256(art["bytes"]).hexdigest()
-    # The published gallery is self-contained (data-URI PNG embedded).
+    # The published gallery is self-contained (data-URI PNG embedded) AND the
+    # ACTUAL fake PNG bytes round-tripped end-to-end: the data-URI payload is the
+    # base64 of the exact bytes the (fake) image API returned — not merely the
+    # template's hardcoded "data:image/png;base64," prefix.
     assert b"data:image/png;base64," in art["bytes"]
+    assert base64.b64encode(_FAKE_PNG_BYTES) in art["bytes"]

@@ -37,6 +37,10 @@ def test_live_figure_build_circular_motion(tmp_path, monkeypatch):
     if not figure._targets(content):
         pytest.skip("circular-motion has no image-need briefs in this checkout")
     monkeypatch.setattr(config, "EXPORT_DIR", tmp_path / "lectures")
+    # COST BOUND: caps the live smoke at 2 generation + 2 vision calls max. The env
+    # var alone won't work here — _FIGURE_CAP is read at module import — so patch
+    # the module attribute directly.
+    monkeypatch.setattr(figure, "_FIGURE_CAP", 2)
     res = figure.build_figures("circular-motion")     # real image + real vision clients
     assert res["items"] >= 1
     assert isinstance(res["errors"], int)
