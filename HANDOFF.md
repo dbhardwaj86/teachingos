@@ -8,7 +8,7 @@
 > - **(d) Frontend** — pure `frontend/src/lib/publishctl/recipe.ts` (stepper-state derivation + factory-run fetch wrappers) + a "Factory run" panel in the Publish app: per-gate buttons (Plan / Approve / Build-all / Publish), each its own explicit owner click, with in-flight disable so the UI itself can't double-fire a request while one is outstanding.
 > - **Golden threads** (`tests/test_g5_golden.py`) prove the HTTP recipe produces the same result as the CLI recipe, the llm/mcd 403 holds, origin-gating holds, and the student surface (`/learn`, `/api/learn/*`, `/api/published*`) carries zero diffs.
 > - **Deferred review cleanups closed in the same slice:** the `origin_auth.is_protected` docstring had drifted (still said "five mutating POSTs" against a real 9-entry set + pattern route) — fixed to describe the set structurally so it can't re-drift the same way; the concurrency-race test reused one seed across all 5 loop iterations, so only iteration 1 ever exercised the true first-plan race window (iterations 2–5 were structurally safe regardless of the lock, measured catch-rate ~40% with the lock removed) — fixed to use a distinct seed per iteration so every pass exercises the race.
-> - **Proposed DEC-14** (text below, recorded **RATIFIED 2026-07-06** per the DEC-13 docs-pass precedent — code-complete with the review gate explicitly still pending; see the decisions block).
+> - **Proposed DEC-14** (text below; status **PROPOSED** — the spec's own Status header is authoritative and still says PROPOSED. Ratification is the Chairman's explicit act at the merge gate, mirroring DEC-13's actual precedent: a dedicated ratify commit flips the spec header + trackers to RATIFIED. That commit has not been made for G5 — code-complete with the review gate explicitly still pending; see the decisions block).
 > - **Gate: 665 pytest** (664 passed, 1 skip = opt-in live-LLM smoke, 0 failures) + **639 vitest** (75 files); `tsc --noEmit` + `npm run build` green.
 > - **⚠ REMAINING BEFORE MERGE (explicitly NOT done yet):** a dedicated Codex pre-merge review of the three-endpoint write boundary (particularly the llm/mcd kind-refusal and the origin-gating additions) → `docs/codex-reviews/30` + a 4-lens adversarial final review (firewall/write-mechanism · security · spec-fidelity · separate-entity) → remediate any findings TDD → re-run the full gate → `merge --ff-only` to `main` → push.
 > - **⚠ Owner follow-ups:** (a) the samagra server needs a restart post-merge before the 3 endpoints + the Factory-run panel exist live; (b) the Chairman should run one real GUI-driven recipe (Plan → Approve → Build → Publish, all clicked in the Publish app) as the **first GUI-driven throughput run**; (c) `/learn` public exposure remains the separate owner deploy step (carried from G2/G3/G4).
@@ -783,7 +783,10 @@ and live suites are **backend 106 pytest + frontend 501 vitest** green. **The dr
     `path=/api/learn`); any new `/api/learn/*` write re-opens it. (6) Anonymous `/learn` stays byte-identical;
     `/api/published*` untouched; the publish gate, the inward `build()` + its 5 guards, the 7 source subsystems,
     and `governance.db` (no migration/table/state-machine change) all untouched.
-11. **DEC-14 · G5 factory-run-over-HTTP invariants — RATIFIED 2026-07-06 (source: spec §9).** (1) **No new write
+11. **DEC-14 · G5 factory-run-over-HTTP invariants — PROPOSED, pending ratification (source: spec §9).** The spec's
+    own Status header remains PROPOSED; ratification is the Chairman's explicit act at the merge gate (a dedicated
+    ratify commit will flip the spec header + trackers to RATIFIED at that point — DEC-13's actual precedent, not
+    yet repeated here). (1) **No new write
     mechanism** — every one of the three new endpoints is a thin delegate to already-reviewed
     `samagra/factory/run.py` code; `plan`/`approve_seed`/`build` gain zero new logic, only HTTP argument-parsing +
     error-mapping wrappers. (2) **The never-automated publish gate is unchanged** — the GUI adds a second owner

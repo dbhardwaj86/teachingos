@@ -460,7 +460,10 @@
 > `origin_auth.is_protected` docstring (stale "five mutating POSTs" wording, now tracks the real 9-entry set +
 > pattern route) and the concurrency-race test (was reusing one seed across its 5 iterations, so only iteration 1
 > exercised the true race window — now uses a distinct seed per iteration so dedup is proven on every pass, not
-> just the first). **Proposed DEC-14** (recorded RATIFIED per the DEC-13 docs-pass precedent — see the decisions
+> just the first). **Proposed DEC-14** (status **PROPOSED** — the spec's own Status header is authoritative and
+> still says PROPOSED; ratification is the Chairman's explicit act at the merge gate, where a dedicated ratify
+> commit will flip the spec header + trackers to RATIFIED, mirroring DEC-13's actual precedent — that commit has
+> not been made for G5. See the decisions
 > block below): (1) no new write mechanism — the three endpoints add zero logic to `run.py`; (2) the
 > never-automated publish gate is unchanged — the GUI is a second owner trigger beside the CLI, `build-all` is
 > client-side sugar over N single-assignment calls, never a server-side batch-write primitive; (3) the llm/mcd
