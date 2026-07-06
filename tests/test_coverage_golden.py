@@ -24,7 +24,11 @@ def test_golden_thread_real_sources(tmp_path):
     if gov_before is not None:
         assert _sha(gov) == gov_before
 
-    assert summary["concepts"] == 86          # the 86 QX physics concepts
+    # Slice R: QX_BUILDER_DB now points at the live combinedDBQues sidecar, whose
+    # concept count is that project's own scope (128 at rewire time), not the old
+    # QX engine's 86 — assert the shape (a real, positive count), not a stale
+    # hardcoded value tied to the previous engine's corpus.
+    assert summary["concepts"] > 0
     assert summary["gaps"] > 0
 
     conn = store.connect_ro(graph)

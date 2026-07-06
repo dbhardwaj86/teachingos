@@ -29,10 +29,24 @@ def _env_path(name: str, default: Path) -> Path:
 GPT_BOX = _env_path("SAMAGRA_GPT_BOX", Path(r"C:\SandBox\gpt_box"))
 CLAUDE_BOX = _env_path("SAMAGRA_CLAUDE_BOX", Path(r"C:\SandBox\claude_box"))
 
-# --- QX (question engine) ---
+# --- combinedDBQues (the unified physics question bank — Slice R source) ---
+# 48,589 physics questions, 30 canonical NCERT chapters, 128 concepts. Serves
+# GET /api/qsearch on :8790 (their RUNBOOK hard rule). READ-ONLY for samagra:
+# HTTP for serving; direct sqlite strictly mode=ro (coverage-build only).
+COMBINED_DB_ROOT = _env_path(
+    "SAMAGRA_COMBINED_DB_ROOT", Path(r"C:\SandBox\claude_khanak_box\combinedDBQues"))
+
+# --- QX (question engine — served by combinedDBQues since Slice R) ---
+# The QX_* names are kept: every consumer keys on them and the serving engine is
+# still the QX engine (combinedDBQues is a fork). QX_ROOT stays for legacy refs
+# but no longer feeds the question path. Rollback to the old engine = set
+# SAMAGRA_QX_SERVER_URL=http://127.0.0.1:8783 + the two DB overrides below
+# (documented in .env.example).
 QX_ROOT = _env_path("SAMAGRA_QX_ROOT", GPT_BOX / "gpt-extract-ques")
-QX_CONTENT_DB = QX_ROOT / "qx" / "qx_content.sqlite"
-QX_BUILDER_DB = QX_ROOT / "qx" / "builder.sqlite"
+QX_CONTENT_DB = _env_path(
+    "SAMAGRA_QX_CONTENT_DB", COMBINED_DB_ROOT / "app" / "qx" / "unified_content.sqlite")
+QX_BUILDER_DB = _env_path(
+    "SAMAGRA_QX_BUILDER_DB", COMBINED_DB_ROOT / "app" / "qx" / "unified_builder.sqlite")
 
 # --- physics-textbook (lecture/notes engine) ---
 TEXTBOOK_ROOT = _env_path("SAMAGRA_TEXTBOOK_ROOT", GPT_BOX / "physics-textbook")
@@ -51,14 +65,14 @@ QUESTIONDB_URL = os.environ.get(
     "SAMAGRA_QUESTIONDB_URL", "https://dbhardwaj86-questiondb.hf.space"
 )
 
-# --- QX live server (the question engine, run locally as a sidecar) ---
-# `python gui/qx_browser.py` -> :8783 exposes GET /api/qsearch (exact + semantic
-# search with rendered maths + figures). SAMAGRA's /api/questions proxies it.
+# --- QX live server (combinedDBQues, run locally as a sidecar) ---
+# combinedDBQues -> :8790 exposes GET /api/qsearch (exact + semantic search with
+# rendered maths + figures). SAMAGRA's /api/questions proxies it.
 # W1.3: the QX base URL is the target of BOTH the backend fetch and the figure
 # asset URLs the browser loads, so it must point only at a trusted local host —
 # validated by api.qx_guard when QxClient is constructed (an off-host URL is
 # rejected unless SAMAGRA_QX_SERVER_ALLOWED_HOSTS opts it in).
-QX_SERVER_URL = os.environ.get("SAMAGRA_QX_SERVER_URL", "http://127.0.0.1:8783")
+QX_SERVER_URL = os.environ.get("SAMAGRA_QX_SERVER_URL", "http://127.0.0.1:8790")
 # Comma-separated extra hostnames allowed for QX_SERVER_URL beyond loopback
 # (e.g. a trusted LAN sidecar). Loopback is always allowed.
 QX_SERVER_ALLOWED_HOSTS = os.environ.get("SAMAGRA_QX_SERVER_ALLOWED_HOSTS", "")
@@ -106,6 +120,11 @@ CONCEPT_GRAPH_DB = REPO_ROOT / "concept_graph.db"
 # The curated chapter<->concept normalization overlay — git-COMMITTED (the human
 # review surface, like styleseed/). Deltas merged onto the deterministic FTS base.
 CONCEPT_ALIASES = REPO_ROOT / "concept_aliases.json"
+# The curated textbook-slug -> combinedDBQues NCERT-chapter mapping — git-COMMITTED
+# (owner-curated review surface, like concept_aliases.json). One row per textbook
+# chapter slug; values carry chapter_id (validation/coverage) + chapter display
+# name (the /api/qsearch facet value).
+CHAPTER_MAP = REPO_ROOT / "chapter_map.json"
 # Published corpus (Phase G1): the owner-gated export snapshot a downstream
 # consumer (PRATHAM) reads INSTEAD of the inward stores. DURABLE — never reset
 # (frozen artifact copies + immutable per-publication records); gitignored like
