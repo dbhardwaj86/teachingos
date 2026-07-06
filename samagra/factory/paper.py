@@ -1,11 +1,11 @@
 """The paper lane engine: assemble an answer-safe question paper / drill from QX.
 
-Deterministic given QX's response — NO LLM. Reads the always-up local QX engine's
-read-only /api/qsearch, whose per-result HTML is question-only (passage / stem /
-options / matrix, with KaTeX data-tex spans + figure <img>s). QX's search route
-NEVER renders rj["answer"] — answers live only in QX's authoring views — so this
-lane is answer-free by construction; the build boundary's _assert_no_answer_leak
-re-asserts that (defense in depth, dispatch.py).
+Deterministic given QX's response — NO LLM. Reads the combinedDBQues question
+engine's (a QX fork, :8790) read-only /api/qsearch, whose per-result HTML is
+question-only (passage / stem / options / matrix, with KaTeX data-tex spans +
+figure <img>s). QX's search route NEVER renders rj["answer"] — answers live only
+in QX's authoring views — so this lane is answer-free by construction; the build
+boundary's _assert_no_answer_leak re-asserts that (defense in depth, dispatch.py).
 
 Two variants share one engine: `paper` = the full first page of QX hits; `drill` =
 a smaller focused subset (the first _DRILL_SIZE). Writes <slug>-<variant>.json (the
@@ -24,6 +24,7 @@ import json
 
 from .. import config, questions_proxy
 from ..clients import QxClient
+from . import chapter_map
 
 # A drill is a smaller, focused subset of the chapter's questions (the first N of
 # QX's stable exact-search order — deterministic, no LLM).
@@ -119,20 +120,35 @@ def _assemble_items_html(results: list[dict]) -> str:
     return "\n".join(parts)
 
 
+def _retrieve(slug: str, client) -> tuple[dict, dict]:
+    """Chapter-scoped listing when the slug is mapped (empty q + the chapter
+    display-name facet — /api/qsearch filters on the display string, verified
+    live 2026-07-06); fall back to the legacy de-hyphenated text query when
+    unmapped or the chapter listing returns 0 hits. Returns (payload, meta)
+    where meta = {"query", "chapter"} is recorded into the artifact JSON."""
+    entry = chapter_map.load().get(slug)
+    if entry:
+        payload = client.search(q="", mode="exact", chapter=entry["chapter"], page=1)
+        if payload.get("results"):
+            return payload, {"query": "", "chapter": entry["chapter"]}
+    query = slug.replace("-", " ").strip()
+    return client.search(q=query, mode="exact", page=1), {"query": query, "chapter": None}
+
+
 def build_paper(slug: str, *, variant: str) -> dict:
     """Build an answer-safe question paper (variant='paper', the full page) or drill
     set (variant='drill', the first _DRILL_SIZE) for a chapter slug, from QX. Writes
     <slug>-<variant>.json + <slug>-<variant>.html under config.EXPORT_DIR/<slug>/ and
     returns the factory result dict {variant, html, json, questions}. Raises
     ValueError (BEFORE writing anything) if QX is unreachable."""
-    query = slug.replace("-", " ").strip()
     client = QxClient()
     try:
-        payload = client.search(q=query, mode="exact", page=1)
-    except Exception as exc:   # noqa: BLE001 — QX down / bad URL / timeout / bad JSON
+        payload, meta = _retrieve(slug, client)
+    except Exception as exc:   # noqa: BLE001 — engine down / bad URL / timeout / bad JSON
         raise ValueError(
-            f"QX engine unreachable — cannot build {variant!r} for {slug!r}: {exc}. "
-            f"Is the QX server running on :8783? (no artifact written)") from exc
+            f"question engine unreachable — cannot build {variant!r} for {slug!r}: {exc}. "
+            f"Is combinedDBQues serving on :8790? (see its RUNBOOK; no artifact written)"
+        ) from exc
 
     results = list(payload.get("results") or [])
     if variant == "drill":
@@ -148,7 +164,7 @@ def build_paper(slug: str, *, variant: str) -> dict:
     title = slug.replace("-", " ").title()
 
     data = {
-        "slug": slug, "variant": variant, "query": query,
+        "slug": slug, "variant": variant, "query": meta["query"], "chapter": meta["chapter"],
         "questions": [{"q_uid": r.get("q_uid"), "q_type": r.get("q_type"),
                        "html": r.get("html")} for r in results],
     }

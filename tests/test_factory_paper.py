@@ -65,12 +65,58 @@ def _deck_json(export_dir, name):
     return json.loads((export_dir / "circular-motion" / name).read_text(encoding="utf-8"))
 
 
-def test_build_paper_queries_qx_with_dehyphenated_slug(export_dir, monkeypatch):
+def _map(monkeypatch, tmp_path, rows):
+    """Point config.CHAPTER_MAP at a throwaway map for retrieval-branch tests."""
+    p = tmp_path / "chapter_map.json"
+    p.write_text(json.dumps(rows), encoding="utf-8")
+    monkeypatch.setattr(config, "CHAPTER_MAP", p)
+
+
+def test_mapped_slug_uses_chapter_scoped_listing(export_dir, tmp_path, monkeypatch):
+    _map(monkeypatch, tmp_path, {"circular-motion": {
+        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
     monkeypatch.setattr(paper, "QxClient", _FakeQx)
     res = paper.build_paper("circular-motion", variant="paper")
-    assert _FakeQx.last_kw["q"] == "circular motion"   # slug de-hyphenated -> query
+    assert _FakeQx.last_kw["q"] == ""                       # listing, not text query
+    assert _FakeQx.last_kw["chapter"] == "Laws of Motion"   # display-name facet
     assert _FakeQx.last_kw["mode"] == "exact"
-    assert res["variant"] == "paper" and res["questions"] == 2
+    assert res["questions"] == 2
+
+
+def test_unmapped_slug_falls_back_to_dehyphenated_text_query(export_dir, tmp_path, monkeypatch):
+    _map(monkeypatch, tmp_path, {})                         # empty map
+    monkeypatch.setattr(paper, "QxClient", _FakeQx)
+    paper.build_paper("circular-motion", variant="paper")
+    assert _FakeQx.last_kw["q"] == "circular motion"
+    assert "chapter" not in _FakeQx.last_kw
+
+
+def test_mapped_slug_with_zero_chapter_hits_falls_back(export_dir, tmp_path, monkeypatch):
+    class _EmptyThenHits(_FakeQx):
+        calls = []
+        def search(self, **kw):
+            _EmptyThenHits.calls.append(kw)
+            if kw.get("chapter"):
+                return {"results": [], "total": 0, "page": 1, "page_size": 25,
+                        "mode": "exact", "degraded": False, "facets": {}}
+            return super().search(**kw)
+    _EmptyThenHits.calls = []
+    _map(monkeypatch, tmp_path, {"circular-motion": {
+        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
+    monkeypatch.setattr(paper, "QxClient", _EmptyThenHits)
+    res = paper.build_paper("circular-motion", variant="paper")
+    assert len(_EmptyThenHits.calls) == 2                   # chapter listing, then fallback
+    assert _EmptyThenHits.calls[1]["q"] == "circular motion"
+    assert res["questions"] == 2
+
+
+def test_artifact_json_records_chapter_and_query(export_dir, tmp_path, monkeypatch):
+    _map(monkeypatch, tmp_path, {"circular-motion": {
+        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
+    monkeypatch.setattr(paper, "QxClient", _FakeQx)
+    paper.build_paper("circular-motion", variant="paper")
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert data["chapter"] == "Laws of Motion" and data["query"] == ""
 
 
 def test_build_paper_writes_nonempty_katex_html_with_question_bodies(export_dir, monkeypatch):
