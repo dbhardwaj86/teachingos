@@ -7,6 +7,7 @@ and a safe local-file opener constrained to configured source roots.
 from __future__ import annotations
 
 import mimetypes
+import threading
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -287,6 +288,17 @@ def api_factory_unpublish(payload: dict):
 
 
 # -- G5 factory-run write path (owner-gated; thin delegates to samagra/factory/run.py) --
+# Serializes the G5 factory-run writes within this (single-process) server: the GUI
+# can double-click/fire concurrent POSTs where the CLI was always serial, and
+# run.plan's dedup check-then-insert is not atomic. Cross-PROCESS concurrency
+# (CLI + HTTP at once) is unchanged and remains accepted under the single-operator
+# threat model (the C3 review's H2 precedent). Deliberately NOT fixed with a DB
+# unique constraint (governance no-migration invariant) or inside run.py (G5's
+# thin-delegate invariant: zero new logic in reviewed factory code). Tasks 3/4
+# (approve-seed, build) reuse this same lock.
+_FACTORY_RUN_LOCK = threading.Lock()
+
+
 def _parse_seed_ref_body(payload: dict) -> str:
     """Validate {seed_ref}. Required non-empty str; v1 scope guard restricts to the
     textbook: prefix (spec §4.1/§4.2) — munshi:/other prefixes stay CLI-only."""
@@ -305,12 +317,16 @@ def api_factory_plan(payload: dict):
     # records the in-review child assignments (the CLI's live-mode behaviour);
     # lane is omitted so classify() drives the default 5-lane deterministic fan-out
     # — the GUI never targets a single lane (samadhan/seed stay CLI-only, F-G5-3).
-    seed_ref = _parse_seed_ref_body(payload)
+    seed_ref = _parse_seed_ref_body(payload)          # validation OUTSIDE the lock
     from ..factory import run as factory_run
-    try:
-        proposals = factory_run.plan(seed_ref, dry=False)
-    except ValueError as e:
-        raise HTTPException(409, str(e))
+    with _FACTORY_RUN_LOCK:
+        try:
+            proposals = factory_run.plan(seed_ref, dry=False)
+        except ValueError as e:
+            # Inert today (run.plan only raises for an explicit lane, never passed
+            # here) — kept as future-proofing symmetry with the publish siblings;
+            # becomes live only if lane is ever exposed over HTTP.
+            raise HTTPException(409, str(e))
     return {"proposals": proposals}
 
 
