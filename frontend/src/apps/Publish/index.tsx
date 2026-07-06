@@ -20,7 +20,7 @@ export default function Publish() {
   // a bare array; unwrap before the pure merge.
   const asg = useApi<{ assignments?: AssignmentLike[] }>(`/api/assignments?_=${nonce}`);
   const man = useApi<PublishedManifestLike>(`/api/published?_=${nonce}`);
-  const { post, error } = useApiPost<{ ok: boolean }>();
+  const { post, error, loading: posting } = useApiPost<{ ok: boolean }>();
   const rows = publishRows(asg.data?.assignments, man.data);
 
   async function act(path: string, chapter: string) {
@@ -32,6 +32,11 @@ export default function Publish() {
   const [slug, setSlug] = useState("");
   const [stepResult, setStepResult] = useState<string | null>(null);
   const [stepError, setStepError] = useState<string | null>(null);
+  // In-flight guard for the panel's own handlers: while any step request is
+  // pending, every stepper button is disabled so a double-click can't stomp
+  // the result line or start a second concurrent build loop (whose first call
+  // would 409 on the server's in-flight guard with a misleading error).
+  const [isRunning, setIsRunning] = useState(false);
 
   const seedRef = `textbook:${slug.trim()}`;
   const rowsForSeed: RecipeAssignmentLike[] = (asg.data?.assignments ?? [])
@@ -46,46 +51,50 @@ export default function Publish() {
   const step = slug.trim() ? deriveStep(rowsForSeed) : "plan";
 
   async function doPlan() {
-    setStepError(null); setStepResult(null);
+    setStepError(null); setStepResult(null); setIsRunning(true);
     try {
       const r = await planRequest(seedRef);
       setStepResult(`planned ${r.proposals.length} lane(s)`);
       setNonce((n) => n + 1);
     } catch (e) { setStepError(String((e as Error).message ?? e)); }
+    finally { setIsRunning(false); }
   }
 
   async function doApproveSeed() {
-    setStepError(null); setStepResult(null);
+    setStepError(null); setStepResult(null); setIsRunning(true);
     try {
       const r = await approveSeedRequest(seedRef);
       setStepResult(`approved ${r.approved.length}`);
       setNonce((n) => n + 1);
     } catch (e) { setStepError(String((e as Error).message ?? e)); }
+    finally { setIsRunning(false); }
   }
 
   async function doBuildAll() {
-    setStepError(null); setStepResult(null);
-    let built = 0;
-    let current = rowsForSeed;
-    let next = nextAssignmentToBuild(current);
-    while (next) {
-      try {
-        await buildRequest(next);
-        built += 1;
-      } catch (e) {
-        setStepError(`built ${built} then failed: ${String((e as Error).message ?? e)}`);
-        setNonce((n) => n + 1);
-        return;
+    setStepError(null); setStepResult(null); setIsRunning(true);
+    try {
+      let built = 0;
+      let current = rowsForSeed;
+      let next = nextAssignmentToBuild(current);
+      while (next) {
+        try {
+          await buildRequest(next);
+          built += 1;
+        } catch (e) {
+          setStepError(`built ${built} then failed: ${String((e as Error).message ?? e)}`);
+          setNonce((n) => n + 1);
+          return;
+        }
+        // Re-derive from the freshly-known state: mark this id as no longer
+        // approved so the loop terminates without waiting on a network refetch
+        // mid-loop (the panel still triggers ONE refetch at the end for the
+        // captured/published table + stepper to reflect reality).
+        current = current.map((r) => (r.id === next ? { ...r, status: "captured" } : r));
+        next = nextAssignmentToBuild(current);
       }
-      // Re-derive from the freshly-known state: mark this id as no longer
-      // approved so the loop terminates without waiting on a network refetch
-      // mid-loop (the panel still triggers ONE refetch at the end for the
-      // captured/published table + stepper to reflect reality).
-      current = current.map((r) => (r.id === next ? { ...r, status: "captured" } : r));
-      next = nextAssignmentToBuild(current);
-    }
-    setStepResult(`built ${built}`);
-    setNonce((n) => n + 1);
+      setStepResult(`built ${built}`);
+      setNonce((n) => n + 1);
+    } finally { setIsRunning(false); }
   }
 
   return (
@@ -98,29 +107,32 @@ export default function Publish() {
       <div style={{ border: "1px solid #e6e6ef", borderRadius: 8, padding: 12, marginBottom: 16 }}>
         <h3 style={{ margin: "0 0 8px", fontSize: 15 }}>Factory run</h3>
         <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-          <input data-testid="factory-run-slug" value={slug}
+          <input data-testid="factory-run-slug" value={slug} aria-label="chapter slug"
             onChange={(e) => setSlug(e.target.value)}
             placeholder="chapter slug, e.g. circular-motion"
             style={{ padding: "5px 8px", border: "1px solid #e6e6ef", borderRadius: 6, minWidth: 220 }} />
-          <button data-testid="factory-run-plan" disabled={!slug.trim() || step !== "plan"}
+          <button data-testid="factory-run-plan" disabled={!slug.trim() || step !== "plan" || isRunning}
             onClick={doPlan}
             style={{ border: 0, background: step === "plan" ? "#2563eb" : "#c7d2fe",
               color: "#fff", borderRadius: 6, padding: "5px 10px", cursor: "pointer" }}>
             Plan
           </button>
-          <button data-testid="factory-run-approve" disabled={!slug.trim() || step !== "approve"}
+          <button data-testid="factory-run-approve" disabled={!slug.trim() || step !== "approve" || isRunning}
             onClick={doApproveSeed}
             style={{ border: 0, background: step === "approve" ? "#2563eb" : "#c7d2fe",
               color: "#fff", borderRadius: 6, padding: "5px 10px", cursor: "pointer" }}>
             Approve seed
           </button>
-          <button data-testid="factory-run-build" disabled={!slug.trim() || step !== "build"}
+          <button data-testid="factory-run-build" disabled={!slug.trim() || step !== "build" || isRunning}
             onClick={doBuildAll}
             style={{ border: 0, background: step === "build" ? "#2563eb" : "#c7d2fe",
               color: "#fff", borderRadius: 6, padding: "5px 10px", cursor: "pointer" }}>
             Build all
           </button>
-          <button data-testid="factory-run-publish" disabled={!slug.trim() || step !== "publish"}
+          {/* Publish delegates to the shared async act(); gate on useApiPost's
+              own loading flag too so an in-flight publish also disables it. */}
+          <button data-testid="factory-run-publish"
+            disabled={!slug.trim() || step !== "publish" || isRunning || posting}
             onClick={() => act("/api/factory/publish", slug.trim())}
             style={{ border: 0, background: step === "publish" ? "#16a34a" : "#bbf7d0",
               color: "#fff", borderRadius: 6, padding: "5px 10px", cursor: "pointer" }}>

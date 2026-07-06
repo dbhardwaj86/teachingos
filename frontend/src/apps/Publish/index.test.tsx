@@ -62,6 +62,9 @@ describe("Factory run stepper panel (G5)", () => {
   it("renders a chapter-slug input and only the Plan button enabled with an empty slug", () => {
     render(<Publish />);
     expect(screen.getByTestId("factory-run-slug")).toBeTruthy();
+    // House convention: placeholder-only inputs carry an aria-label
+    // (Munshi/Sims/Notes precedents).
+    expect(screen.getByLabelText("chapter slug")).toBeTruthy();
     expect(screen.getByTestId("factory-run-plan")).toBeTruthy();
   });
 
@@ -160,5 +163,41 @@ describe("Factory run stepper panel (G5)", () => {
     fireEvent.click(await screen.findByTestId("factory-run-publish"));
     await waitFor(() =>
       expect(post).toHaveBeenCalledWith("/api/factory/publish", { chapter: "circular-motion" }));
+  });
+
+  it("disables the stepper buttons while a step request is in flight, re-enabling after it settles", async () => {
+    // Deferred plan promise: while pending, the Plan button (and every other
+    // stepper button) must be disabled so a double-click can't stomp/race the
+    // result line; once settled, gating returns to the derived step.
+    let resolvePlan!: (v: unknown) => void;
+    planMock.mockReturnValue(new Promise((r) => { resolvePlan = r; }));
+    render(<Publish />);
+    fireEvent.change(screen.getByTestId("factory-run-slug"), { target: { value: "gravitation" } });
+    const planBtn = screen.getByTestId("factory-run-plan");
+    expect(planBtn).toHaveProperty("disabled", false);
+    fireEvent.click(planBtn);
+    await waitFor(() => expect(planBtn).toHaveProperty("disabled", true));
+    resolvePlan({ proposals: [] });
+    // Step is still "plan" for this seed (no rows), so Plan re-enables.
+    await waitFor(() => expect(planBtn).toHaveProperty("disabled", false));
+  });
+
+  it("build-all in flight disables the Build button so a second click cannot start a concurrent loop", async () => {
+    mockAssignments = [
+      { id: "a-rev", seed_ref: "textbook:circular-motion", pipeline: "revision", status: "approved" },
+    ];
+    let resolveBuild!: (v: unknown) => void;
+    buildMock.mockReturnValueOnce(new Promise((r) => { resolveBuild = r; }));
+    render(<Publish />);
+    fireEvent.change(screen.getByTestId("factory-run-slug"), { target: { value: "circular-motion" } });
+    const buildBtn = screen.getByTestId("factory-run-build");
+    fireEvent.click(buildBtn);
+    await waitFor(() => expect(buildBtn).toHaveProperty("disabled", true));
+    fireEvent.click(buildBtn); // must be a no-op: the button is disabled mid-loop
+    resolveBuild({ line: "revision", artifact_ref: "/a.html" });
+    await waitFor(() => expect(buildMock).toHaveBeenCalledTimes(1));
+    // A second concurrent loop never started (would have been a 2nd call).
+    await new Promise((r) => setTimeout(r, 10));
+    expect(buildMock).toHaveBeenCalledTimes(1);
   });
 });
