@@ -1,8 +1,8 @@
 // frontend/src/lib/publishctl/recipe.test.ts
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  approveSeedRequest, buildRequest, deriveStep, nextAssignmentToBuild, planRequest,
-  type AssignmentLike,
+  approveSeedRequest, buildRequest, deriveStep, isDeterministicLane, nextAssignmentToBuild,
+  planRequest, type AssignmentLike,
 } from "./recipe";
 
 const ok = (body: unknown) =>
@@ -17,6 +17,14 @@ afterEach(() => vi.unstubAllGlobals());
 describe("deriveStep (G5 stepper state)", () => {
   it("is 'plan' when there are no assignments for this seed yet", () => {
     expect(deriveStep([])).toBe("plan");
+  });
+
+  it("is 'plan' when handed null (defensive contract)", () => {
+    expect(deriveStep(null)).toBe("plan");
+  });
+
+  it("is 'plan' when handed undefined (defensive contract)", () => {
+    expect(deriveStep(undefined)).toBe("plan");
   });
 
   it("is 'approve' when any row is in-review", () => {
@@ -57,6 +65,26 @@ describe("nextAssignmentToBuild", () => {
   it("returns null when nothing is approved", () => {
     expect(nextAssignmentToBuild([{ id: "a1", pipeline: "revision", status: "captured" }]))
       .toBeNull();
+  });
+
+  it("returns null when handed null (defensive contract)", () => {
+    expect(nextAssignmentToBuild(null)).toBeNull();
+  });
+});
+
+describe("isDeterministicLane", () => {
+  it("is true for each of the 5 deterministic lanes", () => {
+    expect(isDeterministicLane("revision")).toBe(true);
+    expect(isDeterministicLane("lecture")).toBe(true);
+    expect(isDeterministicLane("deck")).toBe(true);
+    expect(isDeterministicLane("paper")).toBe(true);
+    expect(isDeterministicLane("drill")).toBe(true);
+  });
+
+  it("is false for the llm/mcd lanes and for undefined", () => {
+    expect(isDeterministicLane("samadhan")).toBe(false);
+    expect(isDeterministicLane("seed")).toBe(false);
+    expect(isDeterministicLane(undefined)).toBe(false);
   });
 });
 

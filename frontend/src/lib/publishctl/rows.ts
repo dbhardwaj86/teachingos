@@ -2,6 +2,8 @@
 // PURE merge of captured factory assignments x the published manifest -> the rows
 // the operator Publish control renders. No fetch, no React (headless-tested).
 
+// Narrow view for this module; see also recipe.ts's AssignmentLike (a
+// different, narrower view over the same /api/assignments row shape).
 export interface AssignmentLike { seed_ref?: string; pipeline?: string; status?: string; }
 export interface PublishedManifestLike {
   chapters?: Record<string, { chapter?: string; title?: string;

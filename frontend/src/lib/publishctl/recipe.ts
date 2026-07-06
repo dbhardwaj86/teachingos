@@ -3,6 +3,8 @@
 // wrappers over the 3 new owner-gated endpoints. No React (headless-tested),
 // mirroring the existing rows.ts convention in this same directory.
 
+// Narrow view for this module; see also rows.ts's AssignmentLike (a different,
+// narrower view over the same /api/assignments row shape).
 export interface AssignmentLike {
   id?: string;
   pipeline?: string;
@@ -21,11 +23,25 @@ const _laneRank = (p: string | undefined) => {
   return i === -1 ? 99 : i;
 };
 
+// True for exactly the 5 deterministic local/qx lanes (the same set as
+// _LANE_ORDER) — false for the llm/mcd lanes (samadhan/seed) and for
+// undefined. Callers (the Factory-run panel) filter rows to this set BEFORE
+// calling deriveStep, so a CLI-planned samadhan/seed row for the same seed
+// (e.g. a samadhan 'changes' brief, or an in-review seed row) can never
+// distort the derived step — this makes deriveStep total/correct over
+// GUI-planned rows.
+export function isDeterministicLane(pipeline: string | undefined): boolean {
+  return _LANE_ORDER.includes(pipeline ?? "");
+}
+
 export function deriveStep(rows: AssignmentLike[] | null | undefined): RecipeStep {
   const list = Array.isArray(rows) ? rows : [];
   if (list.length === 0) return "plan";
   if (list.some((r) => r.status === "in-review")) return "approve";
   if (list.some((r) => r.status === "approved")) return "build";
+  // No in-review/approved left — with rows filtered to deterministic lanes
+  // (isDeterministicLane), every remaining row is terminal `captured`, so
+  // this catch-all is exactly "publish", never a masked unknown state.
   return "publish";
 }
 
