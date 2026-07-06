@@ -323,3 +323,51 @@ def test_dedupe_results_is_pure_and_deterministic():
     once = paper._dedupe_results(list(rows))
     twice = paper._dedupe_results(list(rows))
     assert once == twice and len(once) == 2
+
+
+# --- Finding 2: dedupe must be blind to identical prose but distinct math ---
+
+_MATH_PROSE = ('<div class="stem">A charged particle moves in a uniform magnetic '
+               'field. Find the radius of the path for the given expression '
+               '<span class="mwrap"><span class="ktx" data-tex="{tex}"></span>'
+               '<img class="eq eq-hidden" src="/asset?slug=x&amp;id=eq1"></span></div>')
+
+
+def test_dedupe_keeps_rows_that_differ_only_by_data_tex(export_dir, monkeypatch):
+    class _MathQx(_FakeQx):
+        def search(self, **kw):
+            return {"results": [
+                        _q("m1", _MATH_PROSE.format(tex="r=mv/(qB)")),
+                        _q("m2", _MATH_PROSE.format(tex="r=2mv/(qB)")),
+                    ],
+                    "total": 2, "page": 1, "page_size": 25, "mode": "exact",
+                    "degraded": False, "facets": {}}
+    monkeypatch.setattr(paper, "QxClient", _MathQx)
+    res = paper.build_paper("circular-motion", variant="paper")
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert [q["q_uid"] for q in data["questions"]] == ["m1", "m2"]   # BOTH kept
+    assert res["questions"] == 2
+
+
+def test_dedupe_drops_rows_fully_identical_including_data_tex(export_dir, monkeypatch):
+    class _MathQx(_FakeQx):
+        def search(self, **kw):
+            return {"results": [
+                        _q("m1", _MATH_PROSE.format(tex="r=mv/(qB)")),
+                        _q("m2", _MATH_PROSE.format(tex="r=mv/(qB)")),   # fully identical
+                    ],
+                    "total": 2, "page": 1, "page_size": 25, "mode": "exact",
+                    "degraded": False, "facets": {}}
+    monkeypatch.setattr(paper, "QxClient", _MathQx)
+    res = paper.build_paper("circular-motion", variant="paper")
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert [q["q_uid"] for q in data["questions"]] == ["m1"]   # m2 dropped
+    assert res["questions"] == 1
+
+
+def test_projection_appends_data_tex_sources():
+    a = _MATH_PROSE.format(tex="r=mv/(qB)")
+    b = _MATH_PROSE.format(tex="r=2mv/(qB)")
+    assert paper._projection(a) != paper._projection(b)
+    assert "r=mv/(qb)" in paper._projection(a)
+    assert "r=2mv/(qb)" in paper._projection(b)

@@ -38,6 +38,15 @@ _DRILL_SIZE = 8
 # threshold never treats as duplicates.
 _DEDUPE_MIN_CHARS = 40
 _TAG_RE = re.compile(r"<[^>]+>")
+_TEX_RE = re.compile(r'data-tex="([^"]*)"')
+
+
+def _projection(html: str) -> str:
+    """Dedup key: visible text + embedded formula sources. data-tex attribute
+    values are appended so questions differing only in math never collide."""
+    tex = " ".join(_TEX_RE.findall(html))
+    text = _TAG_RE.sub(" ", html)
+    return " ".join((text + " " + tex).split()).lower()
 
 
 def _dedupe_results(results: list[dict]) -> list[dict]:
@@ -47,7 +56,7 @@ def _dedupe_results(results: list[dict]) -> list[dict]:
     seen: set[str] = set()
     out: list[dict] = []
     for r in results:
-        proj = " ".join(_TAG_RE.sub(" ", r.get("html") or "").split()).lower()
+        proj = _projection(r.get("html") or "")
         if len(proj) >= _DEDUPE_MIN_CHARS:
             if proj in seen:
                 continue

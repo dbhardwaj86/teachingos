@@ -44,8 +44,7 @@ def test_gauss_law_paper_and_drill_live(export_dir):
     assert data["chapter"] == "Electric Charges and Fields"
 
     # Zero duplicate projections survive (the run-evidence bug this slice fixes).
-    projs = [" ".join(paper._TAG_RE.sub(" ", q["html"] or "").split()).lower()
-             for q in data["questions"]]
+    projs = [paper._projection(q["html"] or "") for q in data["questions"]]
     long_projs = [p for p in projs if len(p) >= paper._DEDUPE_MIN_CHARS]
     assert len(long_projs) == len(set(long_projs))
 
