@@ -333,13 +333,46 @@ def api_factory_plan(payload: dict):
 @app.post("/api/factory/approve-seed")
 def api_factory_approve_seed(payload: dict):
     # The GUI/network sibling of `samagra factory approve-seed` — the PER-SEED
-    # BATCH gate (fork 3, Phase 1): flips every in-review child of this seed to
-    # approved in one explicit owner click. Never a silent auto-approve; distinct
-    # click from Plan and from Build (F-G5-2).
+    # BATCH gate (fork 3, Phase 1), SCOPED to the HTTP-buildable (deterministic)
+    # lanes only (review MED, G5 4-lens review): run.approve_seed flips EVERY
+    # in-review child of a seed, including a CLI-only samadhan (llm) or seed (mcd)
+    # row a `factory plan --lane samadhan`/munshi scan created earlier for the same
+    # seed_ref — a GUI click must never silently rubber-stamp a brief the owner
+    # never reviewed. So this endpoint does NOT delegate to run.approve_seed; it
+    # reads the seed's in-review children itself (the same read-only lookup pattern
+    # api_factory_build uses), keeps only the ones whose LINES[pipeline].kind is
+    # NOT "llm"/"mcd", and approves each kept child individually via run.approve
+    # (the CLI's own single-assignment approve verb) inside the serialization lock.
+    # llm/mcd children are left in-review — CLI-only through their WHOLE HTTP
+    # lifecycle (approve AND build; mirrors api_factory_build's 403 refusal above).
     seed_ref = _parse_seed_ref_body(payload)
+    from ..factory.lines import LINES
     from ..factory import run as factory_run
+    gstore.ensure_tables()
+    conn = gstore.connect_ro()
+    try:
+        children = [a for a in gstore.list_assignments(conn)
+                    if a.get("seed_ref") == seed_ref and a["status"] == "in-review"]
+    finally:
+        conn.close()
+    kept = [a["id"] for a in children
+            if (spec := LINES.get(a.get("pipeline"))) is not None
+            and spec.kind not in ("llm", "mcd")]
+    approved = []
     with _FACTORY_RUN_LOCK:
-        return factory_run.approve_seed(seed_ref)
+        for aid in kept:
+            # run.approve raises ValueError on an unknown/wrong-pipeline/wrong-status
+            # assignment; mapped to 409 like its build sibling. A mid-loop raise
+            # leaves a partial batch — that matches the CLI's own semantics (each
+            # approve is independent + idempotent-safe to re-run; a retried
+            # approve-seed simply finds fewer in-review rows next time), so no
+            # rollback is engineered here.
+            try:
+                factory_run.approve(aid)
+            except ValueError as e:
+                raise HTTPException(409, str(e))
+            approved.append(aid)
+    return {"seed_ref": seed_ref, "approved": approved}
 
 
 @app.post("/api/factory/build")

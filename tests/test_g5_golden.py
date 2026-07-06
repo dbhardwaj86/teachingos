@@ -82,6 +82,29 @@ def test_golden_llm_and_mcd_unreachable_over_http(tmp_path, monkeypatch):
     assert r.status_code == 403
     assert called["hit"] is False
 
+    # The golden proof of the WHOLE-lifecycle CLI-only invariant (review MED): a
+    # fresh seed with a samadhan (llm) row alongside its deterministic rows, run
+    # through the REAL HTTP approve-seed endpoint (no mocking of run at all) —
+    # the samadhan row must stay in-review, never silently approved by the GUI's
+    # per-seed batch click.
+    seed_ref = "textbook:projectile-motion"
+    det_proposals = factory_run.plan(seed_ref, dry=False)
+    det_ids = {p["assignment_id"] for p in det_proposals}
+    samadhan_aid = factory_run.plan(seed_ref, dry=False, lane="samadhan")[0]["assignment_id"]
+
+    appr = c.post("/api/factory/approve-seed", json={"seed_ref": seed_ref})
+    assert appr.status_code == 200
+    approved = set(appr.json()["approved"])
+    assert approved == det_ids
+    assert samadhan_aid not in approved
+
+    conn = gov.connect_ro()
+    try:
+        rows = {a["id"]: a["status"] for a in gov.list_assignments(conn)}
+    finally:
+        conn.close()
+    assert rows[samadhan_aid] == "in-review"   # CLI-only through approve too, not just build
+
 
 def test_golden_origin_gating_holds(monkeypatch):
     monkeypatch.setattr(config, "DISABLE_ORIGIN_AUTH", False)
