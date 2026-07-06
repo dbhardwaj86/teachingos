@@ -72,14 +72,79 @@ def _map(monkeypatch, tmp_path, rows):
     monkeypatch.setattr(config, "CHAPTER_MAP", p)
 
 
-def test_mapped_slug_uses_chapter_scoped_listing(export_dir, tmp_path, monkeypatch):
+def _rows(n, prefix="q", text="Unique question body number"):
+    """n distinct, long-enough (>= _DEDUPE_MIN_CHARS) rows."""
+    return [_q(f"{prefix}{i}", f'<div class="stem">{text} {i} with enough '
+                               f'length to clear the dedupe threshold easily.</div>')
+            for i in range(n)]
+
+
+class _TieredQx(_FakeQx):
+    """Records every search() call's kwargs; returns a caller-supplied
+    per-mode/per-chapter result table (default: empty everywhere)."""
+    calls: list = []
+    table: dict = {}  # (mode, chapter) -> results list; missing -> []
+
+    def __init__(self, *a, **k):
+        pass
+
+    def search(self, **kw):
+        type(self).calls.append(dict(kw))
+        results = type(self).table.get((kw.get("mode"), kw.get("chapter")), [])
+        return {"results": results, "total": len(results), "page": 1, "page_size": 25,
+                "mode": kw.get("mode"), "degraded": False, "facets": {}}
+
+
+def _fresh_tiered(table):
+    cls = type("_TieredQxCase", (_TieredQx,), {"calls": [], "table": table})
+    return cls
+
+
+def test_tier1_exact_chapter_hit_is_a_single_call(export_dir, tmp_path, monkeypatch):
     _map(monkeypatch, tmp_path, {"circular-motion": {
         "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
-    monkeypatch.setattr(paper, "QxClient", _FakeQx)
+    cls = _fresh_tiered({("exact", "Laws of Motion"): _rows(8)})
+    monkeypatch.setattr(paper, "QxClient", cls)
     res = paper.build_paper("circular-motion", variant="paper")
-    assert _FakeQx.last_kw["q"] == ""                       # listing, not text query
-    assert _FakeQx.last_kw["chapter"] == "Laws of Motion"   # display-name facet
-    assert _FakeQx.last_kw["mode"] == "exact"
+    assert len(cls.calls) == 1
+    assert cls.calls[0]["q"] == "circular motion"
+    assert cls.calls[0]["mode"] == "exact"
+    assert cls.calls[0]["chapter"] == "Laws of Motion"
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert data["mode"] == "exact"
+    assert res["questions"] == 8
+
+
+def test_tier2_semantic_floor_when_exact_chapter_is_thin(export_dir, tmp_path, monkeypatch):
+    _map(monkeypatch, tmp_path, {"circular-motion": {
+        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
+    cls = _fresh_tiered({
+        ("exact", "Laws of Motion"): _rows(2, prefix="e"),          # < _DRILL_SIZE(8)
+        ("semantic", "Laws of Motion"): _rows(8, prefix="s"),
+    })
+    monkeypatch.setattr(paper, "QxClient", cls)
+    res = paper.build_paper("circular-motion", variant="paper")
+    assert len(cls.calls) == 2
+    assert cls.calls[1]["mode"] == "semantic"
+    assert cls.calls[1]["q"] == cls.calls[0]["q"]
+    assert cls.calls[1]["chapter"] == cls.calls[0]["chapter"] == "Laws of Motion"
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert data["mode"] == "semantic"
+    assert res["questions"] == 8
+
+
+def test_tier3_legacy_fallback_when_both_chapter_tiers_empty(export_dir, tmp_path, monkeypatch):
+    _map(monkeypatch, tmp_path, {"circular-motion": {
+        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
+    cls = _fresh_tiered({("exact", None): _rows(2, prefix="l")})   # legacy hits
+    monkeypatch.setattr(paper, "QxClient", cls)
+    res = paper.build_paper("circular-motion", variant="paper")
+    assert len(cls.calls) == 3
+    assert "chapter" not in cls.calls[2] or cls.calls[2]["chapter"] is None
+    assert cls.calls[2]["q"] == "circular motion"
+    data = _deck_json(export_dir, "circular-motion-paper.json")
+    assert data["chapter"] is None
+    assert data["mode"] == "exact"
     assert res["questions"] == 2
 
 
@@ -88,35 +153,42 @@ def test_unmapped_slug_falls_back_to_dehyphenated_text_query(export_dir, tmp_pat
     monkeypatch.setattr(paper, "QxClient", _FakeQx)
     paper.build_paper("circular-motion", variant="paper")
     assert _FakeQx.last_kw["q"] == "circular motion"
-    assert "chapter" not in _FakeQx.last_kw
+    assert "chapter" not in _FakeQx.last_kw or _FakeQx.last_kw["chapter"] is None
 
 
-def test_mapped_slug_with_zero_chapter_hits_falls_back(export_dir, tmp_path, monkeypatch):
-    class _EmptyThenHits(_FakeQx):
-        calls = []
-        def search(self, **kw):
-            _EmptyThenHits.calls.append(kw)
-            if kw.get("chapter"):
-                return {"results": [], "total": 0, "page": 1, "page_size": 25,
-                        "mode": "exact", "degraded": False, "facets": {}}
-            return super().search(**kw)
-    _EmptyThenHits.calls = []
+def test_unmapped_slug_is_a_single_call(export_dir, tmp_path, monkeypatch):
+    _map(monkeypatch, tmp_path, {})
+    cls = _fresh_tiered({("exact", None): _rows(2)})
+    monkeypatch.setattr(paper, "QxClient", cls)
+    paper.build_paper("circular-motion", variant="paper")
+    assert len(cls.calls) == 1
+    assert "chapter" not in cls.calls[0] or cls.calls[0]["chapter"] is None
+
+
+def test_artifact_json_records_chapter_query_and_mode(export_dir, tmp_path, monkeypatch):
     _map(monkeypatch, tmp_path, {"circular-motion": {
         "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
-    monkeypatch.setattr(paper, "QxClient", _EmptyThenHits)
-    res = paper.build_paper("circular-motion", variant="paper")
-    assert len(_EmptyThenHits.calls) == 2                   # chapter listing, then fallback
-    assert _EmptyThenHits.calls[1]["q"] == "circular motion"
-    assert res["questions"] == 2
-
-
-def test_artifact_json_records_chapter_and_query(export_dir, tmp_path, monkeypatch):
-    _map(monkeypatch, tmp_path, {"circular-motion": {
-        "chapter_id": "physics.c11.laws_of_motion", "chapter": "Laws of Motion"}})
-    monkeypatch.setattr(paper, "QxClient", _FakeQx)
+    cls = _fresh_tiered({("exact", "Laws of Motion"): _rows(8)})
+    monkeypatch.setattr(paper, "QxClient", cls)
     paper.build_paper("circular-motion", variant="paper")
     data = _deck_json(export_dir, "circular-motion-paper.json")
-    assert data["chapter"] == "Laws of Motion" and data["query"] == ""
+    assert data["chapter"] == "Laws of Motion"
+    assert data["query"] == "circular motion"
+    assert data["mode"] == "exact"
+
+
+def test_same_chapter_slugs_get_different_queries_regression(export_dir, monkeypatch):
+    """Pins the HIGH: circular-motion and constraints-and-spring both map to
+    'Laws of Motion' in the real committed chapter_map.json, but must send
+    DIFFERENT text queries (and therefore no longer collide chapter-wide)."""
+    cls = _fresh_tiered({})   # everything empty -> tier 3 for both, still proves per-slug q
+    monkeypatch.setattr(paper, "QxClient", cls)
+    paper.build_paper("circular-motion", variant="drill")
+    paper.build_paper("constraints-and-spring", variant="drill")
+    qs = [c["q"] for c in cls.calls]
+    assert "circular motion" in qs
+    assert "constraints and spring" in qs
+    assert len(set(qs)) >= 2
 
 
 def test_build_paper_writes_nonempty_katex_html_with_question_bodies(export_dir, monkeypatch):

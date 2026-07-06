@@ -145,19 +145,36 @@ def _assemble_items_html(results: list[dict]) -> str:
     return "\n".join(parts)
 
 
-def _retrieve(slug: str, client) -> tuple[dict, dict]:
-    """Chapter-scoped listing when the slug is mapped (empty q + the chapter
-    display-name facet — /api/qsearch filters on the display string, verified
-    live 2026-07-06); fall back to the legacy de-hyphenated text query when
-    unmapped or the chapter listing returns 0 hits. Returns (payload, meta)
-    where meta = {"query", "chapter"} is recorded into the artifact JSON."""
+def _retrieve(slug: str, client) -> tuple[list[dict], dict]:
+    """Tiered, chapter-scoped, per-slug-topical retrieval (all tiers dedupe first):
+
+    1. exact text query + chapter facet    — precise when the phrase indexes
+       (e.g. "gauss law" -> 5 hits; "circular motion" -> 29).
+    2. semantic query + chapter facet      — when tier 1 yields fewer than
+       _DRILL_SIZE distinct rows: BGE relevance ranking WITHIN the chapter,
+       always returns, per-slug differentiated (live: zero top-8 overlap
+       between same-chapter slugs; ~2s warm).
+    3. legacy exact text query, no chapter — unmapped slug, or tiers 1+2 empty
+       (engine degraded / rollback to the old engine whose facet vocabulary
+       differs — the mapped tiers then no-op and this tier restores the
+       pre-Slice-R behavior).
+
+    Returns (deduped_results, meta); meta = {"query", "chapter", "mode"} is
+    recorded into the artifact JSON."""
+    query = slug.replace("-", " ").strip()
     entry = chapter_map.load().get(slug)
     if entry:
-        payload = client.search(q="", mode="exact", chapter=entry["chapter"], page=1)
-        if payload.get("results"):
-            return payload, {"query": "", "chapter": entry["chapter"]}
-    query = slug.replace("-", " ").strip()
-    return client.search(q=query, mode="exact", page=1), {"query": query, "chapter": None}
+        payload = client.search(q=query, mode="exact", chapter=entry["chapter"], page=1)
+        results = _dedupe_results(list(payload.get("results") or []))
+        if len(results) >= _DRILL_SIZE:
+            return results, {"query": query, "chapter": entry["chapter"], "mode": "exact"}
+        payload = client.search(q=query, mode="semantic", chapter=entry["chapter"], page=1)
+        results = _dedupe_results(list(payload.get("results") or []))
+        if results:
+            return results, {"query": query, "chapter": entry["chapter"], "mode": "semantic"}
+    payload = client.search(q=query, mode="exact", page=1)
+    results = _dedupe_results(list(payload.get("results") or []))
+    return results, {"query": query, "chapter": None, "mode": "exact"}
 
 
 def build_paper(slug: str, *, variant: str) -> dict:
@@ -168,14 +185,13 @@ def build_paper(slug: str, *, variant: str) -> dict:
     ValueError (BEFORE writing anything) if QX is unreachable."""
     client = QxClient()
     try:
-        payload, meta = _retrieve(slug, client)
+        results, meta = _retrieve(slug, client)
     except Exception as exc:   # noqa: BLE001 — engine down / bad URL / timeout / bad JSON
         raise ValueError(
             f"question engine unreachable — cannot build {variant!r} for {slug!r}: {exc}. "
             f"Is combinedDBQues serving on :8790? (see its RUNBOOK; no artifact written)"
         ) from exc
 
-    results = _dedupe_results(list(payload.get("results") or []))
     if variant == "drill":
         results = results[:_DRILL_SIZE]
     # Rewrite QX's relative /asset URLs (figures + equation-image fallbacks) to
@@ -190,6 +206,7 @@ def build_paper(slug: str, *, variant: str) -> dict:
 
     data = {
         "slug": slug, "variant": variant, "query": meta["query"], "chapter": meta["chapter"],
+        "mode": meta["mode"],
         "questions": [{"q_uid": r.get("q_uid"), "q_type": r.get("q_type"),
                        "html": r.get("html")} for r in results],
     }
