@@ -256,9 +256,13 @@ netsh advfirewall firewall add rule name="SAMAGRA LAN demo" dir=in action=allow 
 ```
 
 This is a **demo, not a deploy** — the origin gate (`samagra/api/origin_auth.py`)
-still fails closed on every mutating route for non-loopback callers, so LAN
-devices only ever reach the read surfaces + the `/learn` student login, never
-the operator surface. Demo exposure is not operator exposure.
+still fails closed for non-loopback callers on the **operator-surface** mutating
+routes (the enumerated `_PROTECTED_POSTS`/`_PROTECTED_GETS` + the `/api/gate/`
+pattern route: factory, publish, capture, gate). The `/api/learn/*` student
+writes (login/logout/progress) are intentionally public-prefix and gated by the
+session cookie instead (DEC-12/DEC-13). So LAN devices get the read surfaces +
+the `/learn` student login — never the operator surface. Demo exposure is not
+operator exposure.
 - **Same-origin in prod:** FastAPI serves `frontend/dist` + `/api` on `:8799`, so
   there is no CORS over the tunnel (the Vite dev proxy is dev-only).
 - **Two math stacks (note):** the Questions app typesets with **KaTeX** (bundled),
