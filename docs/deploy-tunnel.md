@@ -218,10 +218,14 @@ Also remove the Access application in the Zero Trust dashboard if retiring the h
 
 - **QX sidecar is a hard dependency for Questions.** Since Slice R (2026-07-06)
   it's **combinedDBQues on `:8790`** — the unified physics corpus (48,589 q, 30
-  NCERT chapters). Start via the **COMBINEDDB-QX logon task** (the wrapper
-  scripts live at `C:\SandBox\claude_khanak_box\combinedDBQues\tools\autostart\
-  combineddb-qx-{server.cmd,autostart.vbs}`; the schtask itself is registered
-  by the owner), or by hand:
+  NCERT chapters). The **COMBINEDDB-QX logon task is NOT YET REGISTERED** — the
+  wrapper scripts exist at `C:\SandBox\claude_khanak_box\combinedDBQues\tools\
+  autostart\combineddb-qx-{server.cmd,autostart.vbs}`, but the Windows
+  Scheduled Task itself still needs the owner to run this one-liner:
+  ```
+  schtasks /create /tn "COMBINEDDB-QX" /sc onlogon /f /tr "wscript.exe \"C:\SandBox\claude_khanak_box\combinedDBQues\tools\autostart\combineddb-qx-autostart.vbs\""
+  ```
+  Until it's registered, start the server by hand:
   ```
   cd C:\SandBox\claude_khanak_box\combinedDBQues\app
   set PORT=8790
@@ -237,6 +241,12 @@ Also remove the Access application in the Zero Trust dashboard if retiring the h
   SAMAGRA_QX_BUILDER_DB=C:\SandBox\gpt_box\gpt-extract-ques\qx\builder.sqlite
   SAMAGRA_QX_CONTENT_DB=C:\SandBox\gpt_box\gpt-extract-ques\qx\qx_content.sqlite
   ```
+  Fail-visibility note: paper/drill retrieval's chapter-scoped tiers (exact
+  and semantic, both faceted on `chapter_map.json`'s display name) will no-op
+  against the old engine, whose chapter-facet vocabulary differs from
+  combinedDBQues's — they return 0 hits and the legacy tier-3 fallback (a
+  plain exact query, no chapter facet) automatically takes over. Pre-Slice-R
+  retrieval semantics come back with zero code changes.
   See `.env.example`'s QX sidecar block for the full commented recipe.
 
 ### LAN demo mode (Chairman ruling 2026-07-06)
