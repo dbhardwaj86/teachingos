@@ -16,7 +16,8 @@ from ..bridge.pointers import resolve_pointers
 from ..bridge.text import item_text
 from . import outbox
 from ..governance import store
-from . import dispatch, samadhan
+from .. import config
+from . import dispatch, figure, samadhan
 from .lines import LINES, classify
 from .seed_payload import build_seed_payload, validate_seed_payload
 
@@ -400,10 +401,15 @@ def build(assignment_id: str) -> dict:
                     "mycontentdev not configured (mcd-cloud.json adminKey / MCD_API_URL)"
                     " — refusing the seed build before recording intent")
         elif spec.kind == "llm":
-            # anti-wedge: chapter exists + StyleSeed committed + LLM configured,
-            # asserted BEFORE recording build intent (a missing key refuses without
-            # wedging the in-flight state — mirrors the mcd validate-before-intent).
-            samadhan.preflight(seed_ref.split(":", 1)[-1])
+            # anti-wedge: preflight BEFORE recording build intent (a missing key /
+            # absent chapter refuses without wedging the in-flight state). Both llm
+            # lanes are kind=="llm"; the lane KEY disambiguates which preflight runs
+            # (figure requires no StyleSeed; samadhan's path is unchanged).
+            _slug = seed_ref.split(":", 1)[-1]
+            if line == "figure":
+                figure.preflight(_slug)
+            else:
+                samadhan.preflight(_slug)
         # Record intent BEFORE producing (crash-window safe; mirrors bridge submit).
         store.append_event(conn, actor=_AGENT, verb="product_building",
                            assignment_id=assignment_id, subsystem="factory",
@@ -444,8 +450,16 @@ def build(assignment_id: str) -> dict:
         # reviewer error OR a degenerate empty brief (no items) lands in 'changes'
         # (owner review) — never a silent capture; every deterministic/mcd lane and a
         # clean, non-empty brief -> terminal 'captured'.
+        # llm capture/changes gate (verbatim): a reviewer error OR an empty brief
+        # routes to `changes`. F1 default posture: a figure build ALSO routes to
+        # `changes` whenever SAMAGRA_FIGURE_AUTOCAPTURE is off, so a generated
+        # diagram is always owner-reviewed until the owner trusts the corpus's
+        # failure rate. The reviewer's real error count stays truthful in the
+        # artifact — this clause only affects the terminal status, not the ledger.
         needs_review = spec.kind == "llm" and (
             result.get("errors", 0) > 0 or result.get("items", 0) == 0)
+        if line == "figure" and not config._env_bool("SAMAGRA_FIGURE_AUTOCAPTURE", False):
+            needs_review = True
         status = "changes" if needs_review else "captured"
         store.set_assignment_status(conn, assignment_id, status)
         return {"assignment_id": assignment_id, "line": line,

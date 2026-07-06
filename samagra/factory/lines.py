@@ -39,10 +39,12 @@ LINES: dict[str, Line] = {
                  None, ("munshi:",), "mcd"),
     "samadhan": Line("samadhan", "Misconception brief (Samadhan, LLM)",
                      None, ("textbook:",), "llm", auto_fan=False),
+    "figure": Line("figure", "Generated figures (image-gen, LLM-reviewed)",
+                   None, ("textbook:",), "llm", auto_fan=False),
 }
 
 # Deterministic lane order so a seed always fans out the same way.
-_ORDER = ["revision", "lecture", "deck", "paper", "drill", "seed", "samadhan"]
+_ORDER = ["revision", "lecture", "deck", "paper", "drill", "seed", "samadhan", "figure"]
 
 
 def classify(seed_ref: str) -> list[str]:

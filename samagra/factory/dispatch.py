@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..lectures import export as lex
 from ..clients.mcd_client import McdClient
-from . import deck, paper, samadhan
+from . import deck, figure, paper, samadhan
 from .lines import LINES
 from .seed_payload import validate_seed_payload
 
@@ -46,6 +46,8 @@ def run_line(line: str, slug: str) -> dict:
     spec = LINES[line]
     if line == "deck":
         return deck.build_deck(slug)
+    if line == "figure":
+        return figure.build_figures(slug)
     if spec.kind == "qx":
         return paper.build_paper(slug, variant=line)
     if spec.kind == "mcd":
@@ -88,6 +90,7 @@ def validate_product(line: str, result: dict) -> None:
     # Answer-leak structural hook (no-op for lecture lanes; enforced for QX in Phase C).
     _assert_no_answer_leak(line, result)
     _assert_review_clean(line, result)
+    _assert_figures_present(line, result)
 
 
 # Structural answer/solution markers QX uses across its THREE answer renderers,
@@ -158,3 +161,25 @@ def _assert_review_clean(line: str, result: dict) -> None:
             not isinstance(result.get("verdicts"), list) or not result["verdicts"]):
         raise ValueError(f"line {line!r} produced no reviewer verdicts — "
                          f"refusing to capture an unreviewed brief")
+
+
+def _assert_figures_present(line: str, result: dict) -> None:
+    """For the figure lane ONLY: the gallery html check (above) is not enough — a
+    build that produced a gallery but zero image files must be refused, not
+    captured. Assert at least one non-empty PNG exists on disk under the sibling
+    <slug>-figures/ directory."""
+    if result.get("variant") != "figure":
+        return
+    pngs = []
+    for f in result.get("figures", []) or []:
+        html = result.get("html")
+        if not html:
+            continue
+        figdir = Path(html).parent / f"{Path(html).stem}"   # <slug>-figures
+        p = figdir / str(f.get("png", ""))
+        if p.is_file() and p.stat().st_size > 0:
+            pngs.append(p)
+    if not pngs:
+        raise ValueError(
+            f"line {line!r} produced no non-empty PNG figure — refusing to capture "
+            f"a figure gallery with no images")

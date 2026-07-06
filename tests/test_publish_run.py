@@ -23,7 +23,8 @@ def publish_env(tmp_path, monkeypatch):
 
 def test_publishable_excludes_the_mcd_seed_lane():
     assert "seed" not in run.PUBLISHABLE
-    assert {"revision", "lecture", "deck", "paper", "drill", "samadhan"} == run.PUBLISHABLE
+    assert {"revision", "lecture", "deck", "paper", "drill", "samadhan",
+            "figure"} == run.PUBLISHABLE
 
 
 def test_norm_lanes_validates_against_publishable():
