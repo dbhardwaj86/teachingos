@@ -130,3 +130,15 @@ def test_preflight_raises_without_styleseed(export, fake_chapter, tmp_path, monk
     monkeypatch.setattr(llm_client, "configured", lambda: True)
     with pytest.raises(RuntimeError):
         samadhan.preflight("circular-motion")
+
+
+def test_preflight_names_selected_provider_key_var_openai(styleseed, fake_chapter, monkeypatch):
+    # review 32 caveat L: under provider=openai with no OPENAI_API_KEY, the
+    # preflight refusal must name OPENAI_API_KEY, never ANTHROPIC_API_KEY.
+    monkeypatch.setenv("SAMAGRA_LLM_PROVIDER", "openai")
+    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    with pytest.raises(RuntimeError) as exc:
+        samadhan.preflight("circular-motion")
+    assert "OPENAI_API_KEY" in str(exc.value)
+    assert "ANTHROPIC_API_KEY" not in str(exc.value)

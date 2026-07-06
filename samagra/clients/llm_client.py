@@ -105,6 +105,14 @@ def configured() -> bool:
     return bool(os.environ.get(_KEY_VARS[p]))
 
 
+def required_key_var() -> str:
+    """The env var name of the SELECTED provider's API key (for error messages
+    that tell the operator which variable to set). Callers must only use this
+    where the provider is already validated (e.g. after `configured()` is
+    known reachable) — an unknown provider raises here, same as elsewhere."""
+    return _KEY_VARS[_provider_from_env()]
+
+
 def _extract_json(response) -> dict:
     """Pull the JSON object out of a Messages response's text blocks. Raises a
     concise RuntimeError — never echoing the content / prompt / key — on a

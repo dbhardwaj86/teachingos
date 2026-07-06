@@ -46,8 +46,12 @@ def preflight(slug: str) -> None:
     render.load_chapter(slug)                  # FileNotFoundError if absent
     _require_styleseed()
     if not llm_client.configured():
+        try:
+            key_var = llm_client.required_key_var()
+        except RuntimeError:
+            key_var = "the LLM API key"         # unknown provider — configured() already fail-closed
         raise RuntimeError(
-            "ANTHROPIC_API_KEY is not set — refusing an LLM build without a key")
+            f"{key_var} is not set — refusing an LLM build without a key")
 
 
 def _prose(item: dict) -> str:
