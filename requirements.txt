@@ -17,7 +17,7 @@ requests>=2.31
 
 # Phase D2 (LLM generation — the samadhan lane)
 anthropic>=0.96
-openai>=2.32
+openai>=2.32  # LLM (Responses) + image (Images) API — Phase F1 figure lane reuses it, no new dep
 
 # dev
 pytest>=8.0
