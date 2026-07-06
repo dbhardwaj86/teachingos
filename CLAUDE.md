@@ -550,9 +550,35 @@
 > `tmp/pytest-addendum2-full`, `tmp/pytest-review31` — owned by the `CodexSandboxOffline` principal, need
 > `takeown /F ... /R /D Y` then `rmdir /S /Q`.
 >
-> **NEXT:** the **LLM provider mini-slice** (OpenAI key already in `.env` — adjust `llm_client.py` for provider
-> flexibility; touches the DEC-7-reviewed D2 generation boundary, so it gets its own mini-design + review addendum),
-> then **Phase F** per DEC-9's ratified ordering: **image-gen figures first, slides second, NO audio.** `/learn`
+> **✅ LLM PROVIDER MINI-SLICE (OpenAI backend for the D2 samadhan generation boundary) SHIPPED 2026-07-07** —
+> built on this branch, commits `48e1556..e3ae45f` (5 commits + tracker sync). `samagra/clients/llm_client.py`
+> (the ONE LLM call site, Phase D2) is now **provider-aware**: `SAMAGRA_LLM_PROVIDER` ∈ {anthropic (default —
+> byte-identical D2 back-compat), openai}. OpenAI path: Responses API (`openai>=2.32`), default model `gpt-5.5`,
+> `SAMAGRA_LLM_EFFORT` validated (none/minimal/low/medium/high/xhigh, fail-closed), strict `json_schema` output,
+> `_extract_json_openai` with the same never-leak-content hardening; `configured()` + new `required_key_var()`
+> are provider-aware; samadhan preflight names the selected provider's key var. `requirements.txt` +=
+> `openai>=2.32`; `.env.example` provider block (`SAMAGRA_LLM_MODEL` now an inert override-only knob —
+> per-provider defaults rule). Live `.env`: provider=openai, gpt-5.5, effort medium, key present. Interface was
+> pre-declared by the Chairman in `.env`; slice executed on "go for next task llm slice". **⭐ FIRST-EVER LIVE
+> VALIDATION of the D2 generation boundary:** the opt-in live smoke (`SAMAGRA_LIVE_LLM_SMOKE=1`) was RUN for
+> real — PASS, 52s, real gpt-5.5 generation + adversarial review round-trip on circular-motion, artifacts
+> written (the D2-era owner follow-up that was never runnable — no Anthropic key ever arrived — is closed).
+> **Reviews:** per-task 2-lens (spec compliance + code quality) = PASS/PASS, call shape verified against the
+> installed openai 2.32 SDK types. Dedicated Codex pre-merge review 32 (generation boundary) = **GO-WITH-CAVEATS**:
+> M (`.env.example`'s active `claude-opus-4-8` model line masked the openai default for template followers) + L
+> (preflight refusal message hardcoded `ANTHROPIC_API_KEY`) — **both closed TDD same-slice** (`42ce9d3`,
+> `e3ae45f`); the named finding (`SAMAGRA_LLM_MODEL` could name a non-reasoning model while `reasoning.effort` is
+> always sent) adjudicated **accept-as-operator-responsibility** (explicit override; OpenAI API fails closed
+> cleanly at build time). Effectively **GO**. **Invariants HELD:** keys env-only from the gitignored `.env`,
+> never logged/repr'd/echoed (both providers) · fail-closed on unknown provider/effort/missing key;
+> `configured()` False → preflight refusal, never a wedge · **DEC-8 reviewer firewall structural on BOTH
+> providers** (`review_samadhan` never receives StyleSeed) · no new prod write path · publish gate untouched ·
+> no migration · rollback = `SAMAGRA_LLM_PROVIDER=anthropic` (or unset) restores D2 exactly. **Gate: 713 pytest**
+> (0 failures, 2 skips = opt-in live smokes) **+ 639 vitest baseline** (frontend untouched). Spec
+> `docs/superpowers/specs/2026-07-07-samagra-llm-provider-openai-design.md` (Status flipped to SHIPPED, records
+> the implementation-outcome chronicle); report `docs/codex-reviews/32-llm-provider-openai-premerge.report.md`.
+>
+> **NEXT: Phase F** per DEC-9's ratified ordering: **image-gen figures first, slides second, NO audio.** `/learn`
 > public exposure remains the separate owner deploy step. **DEC-8 invariants unchanged.**
 >
 > **✅ Direction-coherence decision (ratified 2026-06-21 by Deepak; amended by DEC-6 on 2026-06-22):** a coherence

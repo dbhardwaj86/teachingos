@@ -1,7 +1,7 @@
 # SAMAGRA LLM Provider Mini-Slice — OpenAI backend for the samadhan generation boundary
 
-**Status:** APPROVED FOR EXECUTION 2026-07-07 (Chairman: "go for next task llm slice"; the
-interface was pre-declared by the Chairman in the live `.env`: `SAMAGRA_LLM_PROVIDER=openai`,
+**Status:** SHIPPED 2026-07-07 (Chairman: "go for next task llm slice"; the interface was
+pre-declared by the Chairman in the live `.env`: `SAMAGRA_LLM_PROVIDER=openai`,
 `SAMAGRA_LLM_MODEL=gpt-5.5`, `SAMAGRA_LLM_EFFORT=medium`, `OPENAI_API_KEY` present.)
 
 **Slice type:** mini-slice on the Phase-D2 generation boundary. Dedicated Codex pre-merge
@@ -92,3 +92,48 @@ was never runnable (no Anthropic key ever arrived).
 - Full gates (pytest ≈695+new, vitest 639 untouched).
 - Codex pre-merge review 32 on the generation boundary; remediate TDD; merge ff; push
   is owner-performed.
+
+## 6. Implementation outcome (2026-07-07)
+
+Built on branch `feature/llm-provider-openai`, commits `48e1556..e3ae45f` (5 commits):
+`48e1556` (this spec + 4-task plan), `af2dadd` (provider-aware client — OpenAI Responses
+backend beside Anthropic), `145dc2b` (provider env template + openai requirement;
+live smoke provider-aware), `42ce9d3` (review-32 M fix — `.env.example` model line made
+inert), `e3ae45f` (review-32 L fix — preflight names the selected provider's key var).
+
+**Review chronicle:** per-task 2-lens review (spec compliance + code quality) on each of
+the 4 plan tasks = PASS/PASS throughout; OpenAI Responses call shape verified directly
+against the installed `openai==2.32` SDK types. Dedicated Codex pre-merge review 32 (the
+DEC-7-style generation-boundary review this slice's house convention required) returned
+**GO-WITH-CAVEATS**:
+- **M** — `.env.example`'s active `SAMAGRA_LLM_MODEL=claude-opus-4-8` line masked the
+  code's OpenAI default (`gpt-5.5`) for anyone following the template with only
+  `SAMAGRA_LLM_PROVIDER=openai` + `OPENAI_API_KEY` set. **Closed** same-slice in `42ce9d3`
+  (the model line is now a commented-out, provider-inert override example; per-provider
+  defaults are the documented rule).
+- **L** — the missing-key preflight message hardcoded `ANTHROPIC_API_KEY` even when
+  `openai` was the selected provider and its key was missing. **Closed** same-slice in
+  `e3ae45f` (preflight now names the selected provider's actual key var via the new
+  `required_key_var()`).
+- **Named finding (not a caveat, adjudicated):** `SAMAGRA_LLM_MODEL` could in principle
+  name a non-reasoning OpenAI model while `_create()` always sends `reasoning.effort`.
+  Adjudicated **accept-as-operator-responsibility** — this only fires on an explicit
+  manual override, and the OpenAI API fails closed cleanly (a clean build-time HTTP
+  error, no wedge, no silent misbehavior) rather than corrupting output.
+
+Net: **effectively GO** — both real caveats closed TDD in the same slice, the one
+open item is a documented, accepted, fail-closed edge case.
+
+**Live-smoke result:** the opt-in `SAMAGRA_LIVE_LLM_SMOKE=1` smoke was run for real
+against the live OpenAI key — **PASS, ~52s**, a genuine `gpt-5.5` generation +
+adversarial-review round-trip on the `circular-motion` chapter, artifacts written to
+disk. This is the first-ever live validation of the Phase D2 generation boundary end to
+end (the Anthropic path never had a key to run this against).
+
+**Gate:** 713 pytest (0 failures, 2 skips = the two opt-in live smokes) + 639 vitest
+baseline (frontend untouched by this slice).
+
+**Invariants (§4) status:** all 5 HELD as designed; rollback path
+(`SAMAGRA_LLM_PROVIDER=anthropic` or unset) not exercised live this slice but is
+structurally identical to pre-slice D2 code (no anthropic-path lines changed in
+substance).
