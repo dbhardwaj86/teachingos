@@ -3,8 +3,9 @@
 Expose the **local** SAMAGRA OS stack at a custom HTTPS URL via a `cloudflared`
 **named tunnel** (NOT a Workers/Pages edge deploy — the Python + QX + BGE stack
 runs locally; the tunnel just fronts it). Only `:8799` is tunnelled; the QX
-sidecar on `:8783` stays internal and is reached via the same-origin
-`/api/questions` proxy.
+sidecar — **combinedDBQues on `:8790`** since Slice R (2026-07-06) — stays
+internal and is reached via the same-origin `/api/questions` proxy. Legacy
+engine (`:8783`, retired from defaults 2026-07-06) is a rollback option only.
 
 > **✅ LIVE as of 2026-06-22** at **https://samagra.bhautikiplusprashnavali.com**
 > behind Cloudflare Access. The values below are the as-shipped reality.
@@ -63,7 +64,8 @@ sidecar on `:8783` stays internal and is reached via the same-origin
   (here `bhautikiplusprashnavali.com`). If `route dns` mangles the hostname (appends
   another zone), the cert is scoped to the wrong zone — re-run `cloudflared tunnel
   login` and pick the right one (owner-only browser auth).
-- The QX sidecar repo present at `C:\SandBox\gpt_box\gpt-extract-ques` (Questions).
+- The combinedDBQues repo present at `C:\SandBox\claude_khanak_box\combinedDBQues`
+  (Questions — the QX sidecar since Slice R).
 
 ## 1. Bring up the local stack
 
@@ -73,11 +75,12 @@ sidecar on `:8783` stays internal and is reached via the same-origin
 ```
 
 This builds `frontend/dist`, starts FastAPI on `:8799` and the QX sidecar on
-`:8783`, is idempotent (reuses healthy servers; `-Restart` forces a clean
-relaunch clearing stale listeners), and prints a health summary. Confirm the
-summary shows `FastAPI :8799 HEALTHY` before tunnelling. (Run it directly — do
-**not** add `-ExecutionPolicy Bypass`; a local script runs fine under the normal
-policy and the bypass flag is an unnecessary security-weakening.)
+`:8790` (combinedDBQues), is idempotent (reuses healthy servers; `-Restart`
+forces a clean relaunch clearing stale listeners), and prints a health summary.
+Confirm the summary shows `FastAPI :8799 HEALTHY` before tunnelling. (Run it
+directly — do **not** add `-ExecutionPolicy Bypass`; a local script runs fine
+under the normal policy and the bypass flag is an unnecessary
+security-weakening.)
 
 ## 2. Create the tunnel (once) — DONE
 
@@ -213,10 +216,49 @@ Also remove the Access application in the Zero Trust dashboard if retiring the h
 
 ## Dependencies & notes
 
-- **QX sidecar is a hard dependency for Questions.** It must run on `:8783`
-  (`python -X utf8 gui/qx_browser.py` in `C:\SandBox\gpt_box\gpt-extract-ques`).
+- **QX sidecar is a hard dependency for Questions.** Since Slice R (2026-07-06)
+  it's **combinedDBQues on `:8790`** — the unified physics corpus (48,589 q, 30
+  NCERT chapters). Start via the **COMBINEDDB-QX logon task** (the wrapper
+  scripts live at `C:\SandBox\claude_khanak_box\combinedDBQues\tools\autostart\
+  combineddb-qx-{server.cmd,autostart.vbs}`; the schtask itself is registered
+  by the owner), or by hand:
+  ```
+  cd C:\SandBox\claude_khanak_box\combinedDBQues\app
+  set PORT=8790
+  python -X utf8 gui\qx_browser.py
+  ```
   If it's down, Questions degrades gracefully (banner) rather than erroring.
-  Keep `:8783` internal — only `:8799` is tunnelled.
+  Keep `:8790` internal — only `:8799` is tunnelled.
+  **Rollback** to the legacy engine (`:8783`, retired from defaults
+  2026-07-06 — `python -X utf8 gui/qx_browser.py` in
+  `C:\SandBox\gpt_box\gpt-extract-ques`) via three env lines in `.env`:
+  ```dotenv
+  SAMAGRA_QX_SERVER_URL=http://127.0.0.1:8783
+  SAMAGRA_QX_BUILDER_DB=C:\SandBox\gpt_box\gpt-extract-ques\qx\builder.sqlite
+  SAMAGRA_QX_CONTENT_DB=C:\SandBox\gpt_box\gpt-extract-ques\qx\qx_content.sqlite
+  ```
+  See `.env.example`'s QX sidecar block for the full commented recipe.
+
+### LAN demo mode (Chairman ruling 2026-07-06)
+
+The app server stays **local-only** by policy; deploys happen only after a
+full build + test pass. For a WiFi/LAN demo across devices without a public
+tunnel, bind FastAPI to the LAN interface and relax the student cookie's
+`Secure` flag for plain-http, then open the firewall for `:8799` once (admin):
+
+```dotenv
+SAMAGRA_HOST=0.0.0.0
+SAMAGRA_PRATHAM_COOKIE_SECURE=0
+```
+
+```powershell
+netsh advfirewall firewall add rule name="SAMAGRA LAN demo" dir=in action=allow protocol=TCP localport=8799
+```
+
+This is a **demo, not a deploy** — the origin gate (`samagra/api/origin_auth.py`)
+still fails closed on every mutating route for non-loopback callers, so LAN
+devices only ever reach the read surfaces + the `/learn` student login, never
+the operator surface. Demo exposure is not operator exposure.
 - **Same-origin in prod:** FastAPI serves `frontend/dist` + `/api` on `:8799`, so
   there is no CORS over the tunnel (the Vite dev proxy is dev-only).
 - **Two math stacks (note):** the Questions app typesets with **KaTeX** (bundled),
