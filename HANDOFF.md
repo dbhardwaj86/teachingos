@@ -1,5 +1,89 @@
 # SAMAGRA — Handoff
 
+> **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE F2 (the `slides` lane — NotebookLM-generated slide decks) SHIPPED 2026-07-07 —
+> review gate CLOSED, DEC-17 RATIFIED, merged `--ff-only` to local `main` (⚠ OWNER PUSH PENDING — agent `git
+> push` is classifier-blocked; F1+F2 now ~33 commits ahead of `origin/main`). ⇒ PHASE F COMPLETE.** Branch
+> `feature/content-factory-phase-f2-slides`, 19 commits `c7d9986..8939051`.
+> Driven by the Chairman's full-auto Phase-F delegation ("go for phase F - full auto, carry to completion — use
+> opus subagents only for spec, plan and implementation, you orchestrate"). F2 = the SECOND and FINAL Phase-F lane
+> and SAMAGRA's first **subprocess / external-CLI** generation boundary — it drives Google NotebookLM through the
+> `nlm` CLI. It rides the EXISTING `kind="llm"` synchronous build path (the SAME envelope F1/figure and D2/samadhan
+> use — preflight anti-wedge, capture/changes gate, retryable rollback); NO async-pending state machine (the S1
+> fork — a bounded synchronous poll, `SAMAGRA_SLIDES_TIMEOUT` default 900s). **NO AUDIO — ever** (Chairman,
+> absolute — DEC-9).
+> - **Spec + plan** (Opus subagents, orchestrator-ratified under the full-auto delegation): spec
+> `docs/superpowers/specs/2026-07-07-samagra-content-factory-phase-f2-slides-lane-design.md` (Status flipped to
+> RATIFIED & SHIPPED; forks locked — **S1** synchronous-blocking bounded poll, **A1** ephemeral per-build notebook
+> (create→source→generate→download→delete in `finally`), **B1** rendered chapter text via `nlm source add --text`,
+> **C** self-contained data-URI wrapper HTML = the publishable single-file artifact (ZERO G1/G2 change, F1's exact
+> playbook), **D2** owner-reviewed only (no vision/model review call — `SAMAGRA_SLIDES_AUTOCAPTURE` default OFF →
+> every deck lands `changes`), **E** fail-closed-before-intent / retryable-rollback-after-intent).
+> - **What was built** (6 tasks, subagent-driven TDD, fresh Opus implementer + 2-lens spec+quality review each): new
+> `samagra/clients/notebooklm_client.py` (the ONE `nlm` call site: an injectable subprocess `runner` seam so no
+> standing test shells out; every invocation a LIST — no shell injection; `configured()` parses `nlm login --check`
+> STDOUT, NOT the exit code — `nlm` exits 0 even when auth is expired; deck-format env knobs fail-closed at
+> construction; never-leak error extraction; no-secret repr — SAMAGRA holds NO secret, `nlm` owns the Google
+> OAuth); new `samagra/factory/slides.py` (`_source_text*` bounded to 16000 chars — a HARD Windows-cmdline safety
+> cap; `_wrapper_html` self-contained data-URI PDF/PPTX wrapper, title HTML-escaped, publishable via the UNCHANGED
+> G1/G2 path (fork C); `build_slides` create EPHEMERAL notebook → add source → generate → synchronous BOUNDED poll
+> (`SAMAGRA_SLIDES_TIMEOUT` default 900s, a SHARED budget across source-add+poll) → download → wrap → write →
+> `finally`-delete the ephemeral notebook (a delete-failure never masks the outcome); `preflight` chapter + nlm
+> authed + deck-format knobs valid + safe-slug — NO StyleSeed, NO key); DEC-8 firewall structural (the lane has NO
+> StyleSeed and NO model-review call, by construction — nothing exists that could receive it); wiring — `slides`
+> Line (kind=llm, auto_fan=False, `textbook:` prefix — opt-in, default fan-out unchanged), `run_line` route,
+> `validate_product` deck-file assert, lane-dispatched preflight (figure/samadhan byte-identical),
+> `SAMAGRA_SLIDES_AUTOCAPTURE` default OFF → every build lands `changes` (owner review, never a silent capture); the
+> 5 build guards byte-identical; kind=llm → 403 over HTTP + skipped by approve-seed (CLI-only, structurally, zero
+> new code — inherited free from the existing `kind` refusal).
+> - **Review gate:** **Codex pre-merge review 34** (the DEC-7-style subprocess-boundary review,
+> `docs/codex-reviews/34-f2-slides-lane-premerge.report.md`) = NO-GO (0 HIGH, 1 MED slug path-containment, 1 LOW
+> preflight knob-validation drift) → both remediated TDD → effectively **GO** (8/10 boundary invariants PASSed
+> first pass). **4-lens adversarial Workflow `wf_3229f26e-2b0`** (firewall/security/spec/bughunt × independent
+> refute-verify) = 0 firewall/security findings, 0 HIGH; 6 raw → 4 confirmed, 2 refuted:
+>   - **MED** — `source_add` and `poll_slides` each budgeted the FULL `SAMAGRA_SLIDES_TIMEOUT` independently, so a
+>     worst case took ~2× the configured total wall-clock. **FIXED** (`0146e94`): a shared absolute timeout
+>     deadline is threaded through both stages.
+>   - **LOW** — the deck-format env knobs were validated lazily (only at first use inside the produce step, not at
+>     preflight), so a bad knob could wedge past the anti-wedge check. **FIXED** (`0146e94`): eager validation
+>     moved into `slides.preflight`.
+>   - **NIT ×2** — `_poll_interval` had no floor (a pathological env value could busy-loop) → **FIXED** (`0146e94`:
+>     floored to 1.0s); a spec/code method-name drift noted, reconciled in docs.
+>   - All remediated + regressions added; **slug path-containment** (`_assert_safe_slug` at the write boundary,
+>     `a4d66e2`) was ALSO hardened same-slice as a defense-in-depth pass alongside the Codex MED above.
+> - **Invariants (verified by both gates, held):** no new prod write path (the `nlm` subprocess is OUTBOUND
+> generation — local files under `EXPORT_DIR` + append-only governance rows only; the 7 read-only subsystems +
+> combinedDBQues + governance schema untouched); subprocess safety (args always a list, never a shell string); no
+> SAMAGRA secret (nlm owns the Google OAuth); publish gate untouched (autocapture default OFF → never a silent
+> capture); the 5 build guards byte-identical; DEC-8 reviewer firewall structural (no StyleSeed, no review call);
+> HTTP-403 CLI-only (inherited free via `kind="llm"`); cleanup correctness (ephemeral notebook always deleted,
+> `finally`-guarded, a delete-failure never masks the primary outcome); path safety (slug + `dl_format` clamped at
+> the write boundary).
+> - **Gate: 848 pytest** (0 failures, 4 skips = opt-in live smokes — LLM/image/QX/slides) **+ 639 vitest** (frontend
+> untouched — the deck renders in the existing G2 reader's sandboxed iframe).
+> - **DEC-17 RATIFIED 2026-07-07** (orchestrator, under the Chairman's full-auto Phase-F delegation): the F2
+> slides-lane invariant set — (1) the `nlm` subprocess is OUTBOUND generation, NOT a new prod write path — only
+> local files under `EXPORT_DIR` + append-only governance rows; args always a LIST (no shell injection); SAMAGRA
+> holds NO secret (nlm owns the Google OAuth). (2) NO AUDIO, ever (Chairman-absolute) — the client exposes only
+> slides + notebook-lifecycle verbs; structurally + tripwire-pinned. (3) conservative capture —
+> `SAMAGRA_SLIDES_AUTOCAPTURE` default OFF → every build lands `changes`, never a silent capture. (4) DEC-8
+> reviewer firewall structural — the lane has NO StyleSeed and NO model-review call. (5) opt-in + HTTP-403
+> (kind=llm CLI-only). (6) publish gate + inward `build()` + 5 guards + governance schema (no migration) + the 7
+> read-only subsystems untouched. (7) total build wall-clock bounded to one `SAMAGRA_SLIDES_TIMEOUT` (shared
+> budget); the ephemeral notebook is always deleted (`finally`); rollback is retryable. (8) rollback = don't plan
+> the slides lane / unset `SAMAGRA_SLIDES_*` / `SAMAGRA_LLM_PROVIDER` unaffected.
+> - **▶ IMMEDIATE NEXT:** **owner `git push origin main`** (classifier-blocked for the agent; F1+F2 now ~33 commits
+> ahead of origin). Then: (a) re-auth `nlm login` (currently EXPIRED on the box) and run the opt-in live slides
+> smoke once (`SAMAGRA_LIVE_SLIDES_SMOKE=1 python -m pytest tests/test_slides_live_smoke.py -v`) — the first live
+> validation of the NotebookLM boundary; (b) a factory-wide slug path-containment hardening (the raw slug →
+> `EXPORT_DIR` pattern across every lane + `render.load_chapter` + the dispatch seed guard) is tracked as a
+> SEPARATE slice — F2 hardened only its own boundary, it did not introduce the pattern; (c) the `/learn` public
+> deploy + the first live throughput run remain owner steps. **⇒ PHASE F COMPLETE** (F1 image-gen figures · F2
+> NotebookLM slides; **no audio ever**). Phase F was the last item on the umbrella roadmap's lane table — the
+> content factory's lane surface is now feature-complete; remaining work is owner-driven (deploy, push, live
+> smokes) rather than new lanes.
+>
+> ---
+>
 > **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE F1 (the `figure` lane — image-gen physics figures) SHIPPED 2026-07-07 —
 > review gate CLOSED, DEC-16 RATIFIED, merged `--ff-only` to local `main` (⚠ OWNER PUSH PENDING — agent `git
 > push` is classifier-blocked).** Branch `feature/content-factory-phase-f1-figures`, 14 commits
@@ -66,9 +150,9 @@
 > unreachable over HTTP (kind=llm 403 at `/api/factory/build`, skipped by approve-seed); (5) the publish gate,
 > the inward `build()` + its 5 crash-safety guards, and the governance schema (no migration) are untouched;
 > (6) rollback = don't plan the figure lane (opt-in), or unset `SAMAGRA_IMAGE_*`.
-> - **▶ IMMEDIATE NEXT:** **owner `git push origin main`** (classifier-blocked for the agent). Then **F2** (the
-> NotebookLM slides lane — needs its own async-pending design + DEC-7-style review; NotebookLM confirmed logged in,
-> 244 notebooks; **NO audio ever**). `/learn` public exposure remains the separate owner deploy step.
+> - **▶ NEXT (superseded — see the F2 entry above):** at the time F1 shipped this pointed at F2 (the NotebookLM
+> slides lane) as the immediate next step. **F2 has since SHIPPED (2026-07-07, same day) ⇒ PHASE F COMPLETE** — see
+> the entry at the top of this file. `/learn` public exposure remains the separate owner deploy step.
 >
 > ---
 >

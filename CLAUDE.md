@@ -610,11 +610,55 @@
 > HANDOFF.md). **Gate 771 pytest** (0 fail, 3 skips = opt-in live smokes) **+ 639 vitest**. Spec
 > `docs/superpowers/specs/2026-07-07-samagra-content-factory-phase-f1-figure-lane-design.md`; plan
 > `docs/superpowers/plans/2026-07-07-samagra-content-factory-phase-f1-figure-lane.md`; review
-> `docs/codex-reviews/33-f1-figure-lane-premerge.report.md`. **IMMEDIATE NEXT:** **owner `git push origin main`**
-> (classifier-blocked) → then **F2** (NotebookLM slides — own async-pending design + review; NO audio).
+> `docs/codex-reviews/33-f1-figure-lane-premerge.report.md`.
 >
-> **NEXT after F1: Phase F2 (slides).** DEC-9 ordering: image-gen figures (F1, above) → slides (NotebookLM) →
-> **NO audio**. `/learn` public exposure remains the separate owner deploy step. **DEC-8 invariants unchanged.**
+> **✅ PHASE F2 (the `slides` lane — NotebookLM-generated slide decks) SHIPPED 2026-07-07 — review gate CLOSED,
+> DEC-17 RATIFIED, merged `--ff-only` to local `main` (⚠ OWNER PUSH PENDING — agent `git push` classifier-blocked).**
+> Branch `feature/content-factory-phase-f2-slides`, 19 commits `c7d9986..8939051`, on the Chairman's full-auto
+> Phase-F delegation ("go for phase F … carry to completion — use opus subagents only for spec, plan and
+> implementation, you orchestrate"). **⇒ PHASE F COMPLETE** (F1 image-gen figures · F2 NotebookLM slides; **NO AUDIO,
+> ever** — DEC-9 absolute). F2 = SAMAGRA's FIRST **subprocess / external-CLI generation boundary**: one textbook
+> chapter → a NotebookLM slide deck. Rides the EXISTING `kind="llm"` synchronous build path (D2 samadhan envelope —
+> preflight anti-wedge, capture/changes gate, retryable rollback); **NO async-pending state machine** (S1
+> synchronous-blocking bounded poll chosen over the umbrella spec's parked async design). New
+> **`samagra/clients/notebooklm_client.py`** = the ONE `nlm` call site: an injectable subprocess `runner` seam (every
+> invocation is a LIST — no shell string / no shell injection); `configured()` parses `nlm login --check` STDOUT
+> (never the exit code — nlm can misreport it); deck-format env knobs fail-closed; never-leak errors (verb-named,
+> never the raw stderr / chapter text / notebook content); no-secret repr (SAMAGRA holds NO secret — nlm owns the
+> Google OAuth). New **`samagra/factory/slides.py`**: `_source_text*` (bounded to **16000 chars — a HARD
+> Windows-cmdline safety cap**: `list2cmdline`'s 2× worst case stays under the 32767 CreateProcess limit for ANY
+> content), `_wrapper_html` (self-contained data-URI PDF/PPTX, title HTML-escaped — the publishable single-file
+> artifact via the UNCHANGED G1/G2 path, fork D), `build_slides` (create EPHEMERAL notebook → add source → generate →
+> **synchronous bounded poll** [`SAMAGRA_SLIDES_TIMEOUT` default 900s, a SHARED budget across source-add + poll] →
+> download → wrap → write → **`finally`-delete** the notebook; a delete-failure never masks the outcome), `preflight`
+> (chapter + nlm authed + deck-format knobs valid + **safe-slug** — anti-wedge, **NO StyleSeed / NO key**). The DEC-8
+> reviewer firewall is trivially structural (the lane has NO StyleSeed and NO model-review call at all — NotebookLM
+> composes the deck, the owner reviews it). Wiring: `slides` Line (`kind="llm"`, `auto_fan=False`, `textbook:`
+> prefix — opt-in; default fan-out unchanged), `run_line` route, `validate_product` deck-file assert, lane-dispatched
+> build() preflight (figure/samadhan byte-identical), **`SAMAGRA_SLIDES_AUTOCAPTURE` default OFF → every build lands
+> `changes`** (owner review; a NotebookLM deck is a draft, never a silent capture); the 5 build guards byte-identical;
+> **kind=llm → 403 over HTTP + skipped by approve-seed** (CLI-only). **NO new prod write path · publish gate
+> untouched · no migration · no secret.** Built subagent-driven TDD (6 tasks, fresh Opus implementer + 2-lens
+> spec+quality review each; per-task findings fixed TDD incl. never-leak parse hardening, `dl_format` path clamp, the
+> airtight NO-AUDIO tripwire). **⭐ Live slides smoke is OWNER-run** (opt-in `SAMAGRA_LIVE_SLIDES_SMOKE`; `nlm` auth
+> EXPIRED on the box — the first live validation is an owner action). **Review gate CLOSED:** **Codex pre-merge
+> review 34** (DEC-7 subprocess boundary) = NO-GO (0 HIGH, 1 MED slug path-containment, 1 LOW preflight knob-drift) →
+> **both remediated TDD → effectively GO** (8/10 boundary invariants PASSed first pass); **4-lens adversarial
+> Workflow `wf_3229f26e-2b0`** = **0 firewall/security findings, 0 HIGH**; 6 raw → 4 confirmed (1 MED
+> double-timeout-budget · 1 LOW preflight · 2 NIT), 2 refuted — MED+LOW+NITs all remediated (shared timeout deadline ·
+> eager knob validation · poll-interval floor · slug containment) + regressions. **DEC-17 RATIFIED** (the F2
+> slides-lane invariant set — see HANDOFF.md). **Gate 848 pytest** (0 fail, 4 skips = opt-in live smokes) **+ 639
+> vitest** (frontend untouched). Spec `docs/superpowers/specs/2026-07-07-samagra-content-factory-phase-f2-slides-lane-design.md`;
+> plan `docs/superpowers/plans/2026-07-07-samagra-content-factory-phase-f2-slides-lane.md`; review
+> `docs/codex-reviews/34-f2-slides-lane-premerge.report.md`. **⚠ OWNER:** (a) `git push origin main` (agent push
+> classifier-blocked — F1 + F2 now ~33 commits ahead of origin); (b) re-auth `nlm login`, then run the live slides
+> smoke once (`SAMAGRA_LIVE_SLIDES_SMOKE=1 …`); (c) a factory-wide slug path-containment hardening (the raw
+> slug → `EXPORT_DIR` pattern in every lane + `render.load_chapter`) is tracked as a SEPARATE slice (Codex 34 MED's
+> broader class; F2 hardened its own boundary).
+>
+> **NEXT: Phase F is COMPLETE** (F1 figures · F2 slides; NO audio — DEC-9 absolute). Remaining owner steps: `git push
+> origin main`; re-auth + live slides smoke; the `/learn` public deploy; the first live throughput run. **DEC-8
+> invariants unchanged.**
 >
 > **✅ Direction-coherence decision (ratified 2026-06-21 by Deepak; amended by DEC-6 on 2026-06-22):** a coherence
 > audit found execution solid but the strategic direction drifting — "SAMAGRA OS" had re-introduced the OS-sized
@@ -654,8 +698,8 @@
 
 <!-- scribe:begin v1 -->
 ## TeachingOS memory — auto-generated by scribe; edit OUTSIDE this block only
-_Updated 2026-07-06T23:49. Source: agent session distillation._
-- (5) 2026-07-06 claude: Slice R (rewire question bank to combinedDBQues) is being executed via subagent-driven TDD. [Slice R, Question Bank Rewire]
+_Updated 2026-07-07T02:08. Source: agent session distillation._
+- (5) 2026-07-07 claude: Slice R plan: rewire SAMAGRA question bank from old QX (:8783) to combinedDBQues (:8790) via 12-task subagent-driven TDD plan. [samagra, question-bank, slice-r, subagent-driven-development]
 - (5) 2026-07-06 claude: The question bank directory for SAMAGRA is set to C:\SandBox\claude_khanak_box\combinedDBQues. [question bank, SAMAGRA, file path]
 - (5) 2026-07-06 codex: A 4-lens adversarial review found 3 MEDs, leading to a remediation delta (3 commits). [adversarial review, MED, remediation]
 - (5) 2026-07-05 codex: Write endpoint POST /api/learn/progress uses JWT authentication with a token extracted from the Authorization header. [authentication, JWT]
@@ -684,11 +728,11 @@ _Updated 2026-07-06T23:49. Source: agent session distillation._
 - (5) 2026-06-23 claude: Phase 3 scope is defined as backend bridge plus CLI for the active loop (DEC-5's primary value engine). [phase 3, active loop, backend bridge, CLI]
 - (5) 2026-06-22 claude: TDD is enforced strictly: write test first, watch it fail, then minimal code. [TDD]
 - (5) 2026-06-22 claude: Plan to perform priority fixes and rescope the ROI gate in a new session, with handoff updates. [priority fixes, ROI gate, handoff, TeachingOS]
-- (4) 2026-07-06 claude: User approved git push origin main and killing orphaned processes without archiving seed. [Git Push, Deployment]
-- (4) 2026-07-06 claude: Phase F - full auto: use Opus subagents for spec, plan, and implementation; agent orchestrates and makes executive decisions. [Phase F, Automation, Opus Subagents]
 - (5) 2026-06-22 claude: User finalized deployment by merging and pushing changes to make it durable. [merge, push, durable]
 - (5) 2026-06-22 claude: The autonomous ralph loop is driving SAMAGRA OS to a fully working state. [SAMAGRA OS, ralph loop, autonomous deployment]
 - (5) 2026-06-22 claude: The Ralph loop's mission is to drive the SAMAGRA OS app to fully working, served from frontend/dist/ by FastAPI on :8799. [Ralph, SAMAGRA OS, FastAPI]
 - (5) 2026-06-21 claude: Create session handoff for next session to improve app via custom ralph loop until fully working and deployed to Cloudflare with custom URL pointing to localhost tunnel. [TeachingOS, session handoff, ralph loop, Cloudflare deployment, localhost tunnel]
+- (5) 2026-06-21 claude: Munshi authentication uses a shared-secret cookie model: the secret is consumed at /login?k=<secret>, setting a cookie for subsequent API calls. [TeachingOS, Munshi, auth]
+- (4) 2026-07-06 claude: Subagent-driven development skill is used to execute implementation plans by dispatching fresh subagents per task with two-stage review. [subagent-driven development, implementation plans, TeachingOS]
 Deep recall: C:\SandBox\claude_box\memboxes\scribe\bin\scribe.cmd q "<topic>"
 <!-- scribe:end -->
