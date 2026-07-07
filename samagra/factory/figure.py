@@ -26,7 +26,20 @@ from ..clients import image_client, llm_client
 from ..clients import image_client as _image_client_mod   # alias: the build_figures
 from ..lectures import render                              # PARAMETER shadows the module
 
-_FIGURE_CAP = int(os.environ.get("SAMAGRA_FIGURE_CAP", "6"))
+def _read_cap() -> int:
+    """The per-chapter figure cap from SAMAGRA_FIGURE_CAP, default 6. Hardened so a
+    BLANK ('' — how .env ships an unset knob) or non-numeric value falls back to the
+    default WITHOUT crashing at import (a blank int('') would ValueError and kill
+    every `samagra factory ...` CLI + POST /api/factory/* handler that imports this
+    module). cap<=0 keeps its downstream disable semantics (see _targets)."""
+    raw = os.environ.get("SAMAGRA_FIGURE_CAP")
+    try:
+        return int(raw) if raw not in (None, "") else 6
+    except ValueError:
+        return 6
+
+
+_FIGURE_CAP = _read_cap()
 
 # Frozen module constant — changing it is a reviewed commit. No StyleSeed (E).
 _STYLE_PREAMBLE = (
@@ -196,9 +209,16 @@ def build_figures(slug, *, image_client=None, vision_client=None) -> dict:
         section_text = _section_text(content, t["section"])
         vres = vis.review_figure(png, t["brief"], section_text)
         vlist = vres.get("verdicts", []) if isinstance(vres, dict) else []
-        v = next((x for x in vlist if x.get("idx") == t["idx"] - 1), None)
-        # FAIL-CLOSED: an unreviewed / non-ok figure counts as an error (mirrors
-        # samadhan) so a partial-coverage reviewer can never let one reach capture.
+        # review_figure is a PER-IMAGE call with NO index context — the reviewer
+        # sees only THIS image's brief + section text and (per _REVIEW_FIGURE_SYSTEM)
+        # replies {"verdicts":[{"idx":0,...}]}. So the reply's first/only verdict is
+        # authoritative for the image under review; matching on the chapter-global
+        # doc idx would (correctly) find nothing for figure 2..N and fabricate an
+        # error verdict (the MED#1 bug). Take vlist[0].
+        v = vlist[0] if vlist else None
+        # FAIL-CLOSED: a genuinely empty/missing verdict list counts as an error
+        # (mirrors samadhan) so a non-responding reviewer can never let one reach
+        # capture; an unknown/missing verdict STRING below also maps to error.
         if v is None:
             v = {"verdict": "error", "rationale": "no reviewer verdict for this figure"}
         verdict = "ok" if v.get("verdict") == "ok" else "error"

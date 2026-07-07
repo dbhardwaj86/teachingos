@@ -100,15 +100,21 @@ class FakeImageClient:
 
 
 class FakeVisionClient:
-    """Returns a scripted verdict list from review_figure. NEVER accepts a
-    StyleSeed (mirrors llm_client.review_figure's real signature)."""
-    def __init__(self, verdicts):
-        self._verdicts = verdicts
+    """Returns a scripted PER-IMAGE verdict from review_figure. review_figure is
+    called ONCE PER IMAGE with no index context, so the real client always replies
+    {"verdicts":[{"idx":0,...}]} (one verdict, idx 0). This fake mirrors that: it
+    pops the next scripted per-call verdict list off `_scripts` (each script is the
+    single-figure reply that call returns). NEVER accepts a StyleSeed (mirrors
+    llm_client.review_figure's real signature)."""
+    def __init__(self, scripts):
+        # `scripts` is a list of per-call verdict lists, one per review_figure call.
+        self._scripts = list(scripts)
         self.calls = []
 
     def review_figure(self, png_bytes, brief, section_text):
         self.calls.append((png_bytes, brief, section_text))
-        return {"verdicts": self._verdicts}
+        script = self._scripts.pop(0) if self._scripts else []
+        return {"verdicts": script}
 
 
 @pytest.fixture()
@@ -124,7 +130,10 @@ def fake_chapter(monkeypatch):
 
 
 def _ok_verdicts(n):
-    return [{"idx": i, "verdict": "ok", "rationale": "matches"} for i in range(n)]
+    """N per-call scripts, each the REALISTIC per-image reviewer reply (idx 0, ok).
+    Matches the real client shape: review_figure is called once per image and each
+    call returns its own single-figure {"verdicts":[{"idx":0,...}]}."""
+    return [[{"idx": 0, "verdict": "ok", "rationale": "matches"}] for _ in range(n)]
 
 
 def test_build_figures_happy_path_writes_pngs_gallery_json(export, fake_chapter):
@@ -152,7 +161,7 @@ def test_gallery_embeds_data_uris_and_escapes_untrusted_text(export, monkeypatch
             {"type": "image-need", "brief": "A cube with E>0 and label <n̂>"}]}]}
     monkeypatch.setattr(render, "load_chapter", lambda slug: ch)
     img = FakeImageClient()
-    vis = FakeVisionClient([{"idx": 0, "verdict": "error", "rationale": "label <wrong>"}])
+    vis = FakeVisionClient([[{"idx": 0, "verdict": "error", "rationale": "label <wrong>"}]])
     res = figure.build_figures("gauss-law", image_client=img, vision_client=vis)
     html = Path(res["html"]).read_text(encoding="utf-8")
     # PNG embedded as a data URI — no external image reference.
@@ -181,19 +190,40 @@ def test_build_figures_empty_when_no_image_need(export, monkeypatch):
 
 
 def test_missing_verdict_fails_closed(export, fake_chapter):
-    # 2 targets but only 1 verdict -> the unreviewed figure counts as an error.
+    # 2 targets; the 2nd review_figure call returns an EMPTY verdict list (a
+    # non-responding reviewer) -> that figure fails closed as an error.
     img = FakeImageClient()
-    vis = FakeVisionClient([{"idx": 0, "verdict": "ok", "rationale": "ok"}])
+    vis = FakeVisionClient([[{"idx": 0, "verdict": "ok", "rationale": "ok"}], []])
     res = figure.build_figures("circular-motion", image_client=img, vision_client=vis)
     assert res["items"] == 2 and res["errors"] == 1
 
 
 def test_error_verdict_is_counted(export, fake_chapter):
+    # Per-image scripts: call 1 -> error, call 2 -> ok. One error counted.
     img = FakeImageClient()
-    vis = FakeVisionClient([{"idx": 0, "verdict": "error", "rationale": "wrong vectors"},
-                            {"idx": 1, "verdict": "ok", "rationale": "ok"}])
+    vis = FakeVisionClient([[{"idx": 0, "verdict": "error", "rationale": "wrong vectors"}],
+                            [{"idx": 0, "verdict": "ok", "rationale": "ok"}]])
     res = figure.build_figures("circular-motion", image_client=img, vision_client=vis)
     assert res["errors"] == 1
+
+
+def test_multi_figure_per_image_reviewer_all_ok_zero_errors(export, fake_chapter):
+    """MED#1 regression: review_figure is a PER-IMAGE call and (per
+    _REVIEW_FIGURE_SYSTEM) a compliant reviewer returns {"verdicts":[{"idx":0,...}]}
+    on EVERY call — always idx 0, never the chapter-global doc idx. The old code
+    matched on `idx == t["idx"] - 1`, so figure 2..N found no verdict and fabricated
+    an error, making any >=2-image chapter permanently un-capturable. This fixture
+    reproduces the real per-call shape (idx 0 every call). Both figures must be ok
+    and errors must be 0."""
+    img = FakeImageClient()
+    # BOTH calls return the identical single-figure idx-0 reply (the real shape).
+    vis = FakeVisionClient([[{"idx": 0, "verdict": "ok", "rationale": "matches"}],
+                            [{"idx": 0, "verdict": "ok", "rationale": "matches"}]])
+    res = figure.build_figures("circular-motion", image_client=img, vision_client=vis)
+    assert res["items"] == 2
+    assert res["errors"] == 0                          # NOT fabricated errors
+    assert [f["verdict"] for f in res["figures"]] == ["ok", "ok"]
+    assert len(vis.calls) == 2                          # one review call per image
 
 
 def test_whole_build_raises_on_image_failure_no_partial_return(export, fake_chapter):
@@ -260,3 +290,21 @@ def test_preflight_requires_no_styleseed(export, fake_chapter, monkeypatch, tmp_
     monkeypatch.setattr(figure.image_client, "configured", lambda: True)
     monkeypatch.setattr(figure.llm_client, "configured", lambda: True)
     figure.preflight("circular-motion")   # no raise despite absent StyleSeed
+
+
+# --- MED#2: SAMAGRA_FIGURE_CAP read must never crash the factory at import -------
+
+@pytest.mark.parametrize("value,expected", [
+    ("", 6),        # blank (how .env ships an unset knob) -> default, NO ValueError
+    ("abc", 6),     # non-numeric -> default, NO ValueError
+    ("3", 3),       # concrete override
+    ("0", 0),       # cap<=0 keeps its downstream disable semantics
+])
+def test_read_cap_env_values(monkeypatch, value, expected):
+    monkeypatch.setenv("SAMAGRA_FIGURE_CAP", value)
+    assert figure._read_cap() == expected
+
+
+def test_read_cap_unset_is_default_six(monkeypatch):
+    monkeypatch.delenv("SAMAGRA_FIGURE_CAP", raising=False)
+    assert figure._read_cap() == 6
