@@ -18,8 +18,15 @@ from __future__ import annotations
 
 import base64
 import html as _html
+import json
 import os
 import re
+import time
+import uuid
+
+from .. import config
+from ..clients import notebooklm_client
+from ..lectures import render
 
 _MEDIA_TYPES = {
     "pdf": "application/pdf",
@@ -152,3 +159,147 @@ def _wrapper_html(title: str, deck_bytes: bytes, *, deck_format: str,
     return _WRAPPER_DOC.format(
         title=esc_title, kicker=_html.escape("NotebookLM slide deck (Slides lane)"),
         css=_WRAPPER_CSS, body=body)
+
+
+_POLL_TERMINAL_OK = "completed"
+_POLL_TERMINAL_BAD = ("failed", "error")
+
+
+def _timeout() -> int:
+    raw = os.environ.get("SAMAGRA_SLIDES_TIMEOUT")
+    try:
+        return int(raw) if raw not in (None, "") else 900
+    except ValueError:
+        return 900
+
+
+def _poll_interval() -> float:
+    raw = os.environ.get("SAMAGRA_SLIDES_POLL_INTERVAL")
+    try:
+        return float(raw) if raw not in (None, "") else 15.0
+    except ValueError:
+        return 15.0
+
+
+def _sleep(seconds: float) -> None:
+    """Indirection so tests can no-op the poll wait (monkeypatched). Never called
+    with a real interval in the standing gate."""
+    time.sleep(seconds)
+
+
+def preflight(slug: str) -> None:
+    """Anti-wedge pre-check (called by build() BEFORE recording intent): the chapter
+    exists and `nlm` is present + authed. NO StyleSeed requirement (NotebookLM
+    composes the deck from the source; there is no SAMAGRA prompt to condition), NO
+    API key (nlm owns the Google creds). Raises FileNotFoundError / RuntimeError
+    without writing anything."""
+    render.load_chapter(slug)                           # FileNotFoundError if absent
+    if not notebooklm_client.configured():
+        raise RuntimeError(
+            "nlm is not present or not authenticated (run `nlm login`) — refusing a "
+            "slides build without an authed NotebookLM CLI")
+
+
+def _slide_deck_artifact(status: dict) -> dict | None:
+    """The slide-deck artifact record from a `studio status --json` payload, or None
+    if not present yet. Tolerant of the artifact-list shape."""
+    arts = status.get("artifacts") if isinstance(status, dict) else None
+    for a in arts or []:
+        t = str(a.get("type", "")).lower()
+        if "slide" in t or "deck" in t:
+            return a
+    return None
+
+
+def _poll_until_ready(nlm, nb: str) -> str:
+    """SYNCHRONOUS S1 poll: studio_status until the slide deck is `completed` (return
+    its artifact id), an explicit `failed`/`error` (RuntimeError), or the total
+    SAMAGRA_SLIDES_TIMEOUT elapses (TimeoutError). Bounded on both the per-call
+    subprocess timeout (in the client) and this total timeout. The interval sleep
+    goes through _sleep so tests never wait for real."""
+    deadline = time.monotonic() + _timeout()
+    interval = _poll_interval()
+    while True:
+        art = _slide_deck_artifact(nlm.studio_status(nb))
+        st = str((art or {}).get("status", "")).lower()
+        if st == _POLL_TERMINAL_OK:
+            aid = (art or {}).get("id")
+            if not aid:
+                raise RuntimeError("slide deck completed but carried no artifact id")
+            return str(aid)
+        if st in _POLL_TERMINAL_BAD:
+            raise RuntimeError("NotebookLM slide generation reported a failed status")
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"slide generation did not complete within {_timeout()}s")
+        _sleep(interval)
+
+
+def build_slides(slug, *, nlm=None) -> dict:
+    """Create an ephemeral NotebookLM notebook, generate + download a slide deck,
+    wrap it into a self-contained data-URI HTML, and write the artifacts. The
+    ephemeral notebook is deleted in a `finally` (a delete failure is logged and
+    does NOT mask the primary outcome, nor convert a success into a rollback). Any
+    step failure or a timeout raises the whole build (no partial RESULT) — build()
+    rolls it back retryably. Clears the stale working dir before writing."""
+    content = render.load_chapter(slug)                 # ground truth (raises if absent)
+    client = nlm or notebooklm_client.NotebookLMClient()
+    source_text, truncated = _source_text_bounded(content)
+
+    out = config.EXPORT_DIR / slug
+    out.mkdir(parents=True, exist_ok=True)
+    workdir = out / f"{slug}-slides"
+    for stale in workdir.glob("deck.*"):                # clear stale before writing (retry-safe)
+        stale.unlink()
+    workdir.mkdir(parents=True, exist_ok=True)
+
+    title = str(content.get("title", slug) or slug)
+    nb = None
+    try:
+        nb = client.create_notebook(f"SAMAGRA slides: {slug} {uuid.uuid4().hex[:8]}")
+        client.add_text_source(nb, source_text, wait_timeout=_timeout())
+        client.create_slides(nb)
+        artifact_id = _poll_until_ready(client, nb)
+        dl_format = getattr(client, "_dl_format", "pdf")
+        deck_path = workdir / f"deck.{dl_format}"
+        client.download_slide_deck(nb, artifact_id, deck_path)
+        deck_bytes = deck_path.read_bytes()
+        if not deck_bytes:
+            raise RuntimeError("downloaded slide deck is empty")
+    finally:
+        if nb is not None:
+            try:
+                client.delete_notebook(nb)
+            except Exception:  # noqa: BLE001 - a delete failure must NEVER mask the
+                # primary outcome nor convert a success to a rollback. The ephemeral
+                # notebook (titled `SAMAGRA slides:`) is harmless owner-pruneable
+                # state. Deliberately swallowed; a concise log names the orphan id
+                # WITHOUT echoing any nlm stderr / notebook content.
+                import logging
+                logging.getLogger(__name__).warning(
+                    "slides: failed to delete ephemeral notebook %s (owner-pruneable)", nb)
+
+    # The synthetic owner-review verdict (D2 3.4): items=1, errors=0, and a single
+    # `changes` verdict so _assert_review_clean passes structurally, while the
+    # conservative default clause routes to `changes` regardless.
+    verdicts = [{"idx": 0, "verdict": "changes",
+                 "rationale": "NotebookLM deck — owner review required"}]
+    deck_b64 = base64.b64encode(deck_bytes).decode("ascii")
+    embed_max = _embed_max()
+
+    json_path = out / f"{slug}-slides.json"
+    json_path.write_text(json.dumps({
+        "slug": slug, "title": title, "deck_format": dl_format,
+        "artifact_id": artifact_id, "deck_bytes": len(deck_bytes),
+        "deck_b64": deck_b64, "source_truncated": truncated,
+        "items": 1, "errors": 0, "verdicts": verdicts,
+    }, ensure_ascii=False, indent=2), encoding="utf-8")
+    html_path = out / f"{slug}-slides.html"
+    html_path.write_text(
+        _wrapper_html(title, deck_bytes, deck_format=dl_format, embed_max=embed_max),
+        encoding="utf-8")
+
+    return {"variant": "slides", "html": str(html_path), "json": str(json_path),
+            "deck": str(deck_path), "deck_format": dl_format,
+            "artifact_id": artifact_id, "source_truncated": truncated,
+            "items": 1, "errors": 0, "verdicts": verdicts}

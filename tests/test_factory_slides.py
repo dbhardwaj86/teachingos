@@ -123,3 +123,194 @@ def test_wrapper_pptx_is_download_card_not_embed():
     assert (f"data:application/vnd.openxmlformats-officedocument."
             f"presentationml.presentation;base64,{b64}") in html
     assert "download" in html
+
+
+# --- Task 3: build_slides + preflight + poll (fake nlm client) -----------------
+import json
+from pathlib import Path
+
+from samagra import config
+
+
+class FakeNLM:
+    """A fake NotebookLMClient scripting the whole slides lifecycle. Records the
+    ordered method calls; studio_status returns pending K times then completed;
+    download writes a fake PDF. Can be told to raise on a named step, or to fail on
+    delete, to exercise the failure/cleanup paths. NEVER shells out."""
+    def __init__(self, *, pending=1, raise_on=None, delete_raises=False,
+                 status_failed=False, pdf=b"%PDF-1.4 fake"):
+        self.calls = []
+        self._pending = pending
+        self._polls = 0
+        self._raise_on = raise_on
+        self._delete_raises = delete_raises
+        self._status_failed = status_failed
+        self._pdf = pdf
+
+    def _maybe_raise(self, step):
+        if self._raise_on == step:
+            raise RuntimeError(f"nlm {step} failed")
+
+    def create_notebook(self, title):
+        self.calls.append("create_notebook")
+        self._maybe_raise("create_notebook")
+        return "nb_fake"
+
+    def add_text_source(self, nb, text, *, wait_timeout):
+        self.calls.append("add_text_source")
+        self._maybe_raise("add_text_source")
+
+    def create_slides(self, nb):
+        self.calls.append("create_slides")
+        self._maybe_raise("create_slides")
+
+    def studio_status(self, nb):
+        self.calls.append("studio_status")
+        self._maybe_raise("studio_status")
+        self._polls += 1
+        if self._status_failed:
+            return {"artifacts": [{"type": "slide_deck", "status": "failed", "id": "a1"}]}
+        status = "completed" if self._polls > self._pending else "pending"
+        return {"artifacts": [{"type": "slide_deck", "status": status, "id": "art_9"}]}
+
+    def download_slide_deck(self, nb, artifact_id, out_path):
+        self.calls.append("download_slide_deck")
+        self._maybe_raise("download_slide_deck")
+        Path(out_path).write_bytes(self._pdf)
+        return out_path
+
+    def delete_notebook(self, nb):
+        self.calls.append("delete_notebook")
+        if self._delete_raises:
+            raise RuntimeError("nlm notebook delete failed")
+
+
+@pytest.fixture()
+def export(tmp_path, monkeypatch):
+    monkeypatch.setattr(config, "EXPORT_DIR", tmp_path / "lectures")
+    # zero the poll interval so the bounded loop spins instantly (no real wait).
+    monkeypatch.setenv("SAMAGRA_SLIDES_POLL_INTERVAL", "0")
+    return tmp_path
+
+
+@pytest.fixture()
+def fake_chapter(monkeypatch):
+    from samagra.lectures import render
+    monkeypatch.setattr(render, "load_chapter", lambda slug: _CHAPTER)
+
+
+def test_build_slides_happy_path_writes_wrapper_json_and_deck(export, fake_chapter, monkeypatch):
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)     # no real wait in tests
+    nlm = FakeNLM(pending=2)
+    res = slides.build_slides("circular-motion", nlm=nlm)
+    assert res["variant"] == "slides"
+    assert res["items"] == 1 and res["errors"] == 0
+    # the synthetic owner-review verdict (D2) so _assert_review_clean passes.
+    assert res["verdicts"] and res["verdicts"][0]["verdict"] == "changes"
+    # ordered lifecycle: create -> source -> slides -> poll(>=1) -> download -> delete.
+    assert nlm.calls[0] == "create_notebook"
+    assert nlm.calls[1] == "add_text_source"
+    assert nlm.calls[2] == "create_slides"
+    assert "download_slide_deck" in nlm.calls
+    assert nlm.calls[-1] == "delete_notebook"        # cleanup last
+    # artifacts on disk.
+    out = config.EXPORT_DIR / "circular-motion"
+    assert (out / "circular-motion-slides.html").is_file()
+    assert (out / "circular-motion-slides.json").is_file()
+    assert (out / "circular-motion-slides" / "deck.pdf").stat().st_size > 0
+    assert Path(res["html"]).is_file() and Path(res["json"]).is_file()
+    data = json.loads(Path(res["json"]).read_text(encoding="utf-8"))
+    assert data["deck_format"] == "pdf"
+    assert data["deck_bytes"] > 0 and data["artifact_id"] == "art_9"
+
+
+def test_wrapper_html_is_self_contained_data_uri(export, fake_chapter, monkeypatch):
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    res = slides.build_slides("circular-motion", nlm=FakeNLM(pending=0))
+    html = Path(res["html"]).read_text(encoding="utf-8")
+    assert "data:application/pdf;base64," in html
+    assert "http://" not in html and "https://" not in html
+
+
+def test_build_slides_deletes_notebook_in_finally_on_failure(export, fake_chapter, monkeypatch):
+    # A download failure AFTER the notebook is created STILL deletes it.
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    nlm = FakeNLM(pending=0, raise_on="download_slide_deck")
+    with pytest.raises(RuntimeError):
+        slides.build_slides("circular-motion", nlm=nlm)
+    assert "delete_notebook" in nlm.calls             # cleanup ran despite the raise
+
+
+def test_delete_failure_does_not_mask_success(export, fake_chapter, monkeypatch):
+    # The deck downloaded fine; the delete fails -> the SUCCESS is still returned.
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    nlm = FakeNLM(pending=0, delete_raises=True)
+    res = slides.build_slides("circular-motion", nlm=nlm)   # no raise
+    assert res["variant"] == "slides" and res["items"] == 1
+
+
+def test_delete_failure_does_not_convert_failure_to_success(export, fake_chapter, monkeypatch):
+    # The download fails AND the delete fails -> the PRIMARY (download) raise wins.
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    nlm = FakeNLM(pending=0, raise_on="download_slide_deck", delete_raises=True)
+    with pytest.raises(RuntimeError) as e:
+        slides.build_slides("circular-motion", nlm=nlm)
+    assert "download slide-deck" in str(e.value) or "download_slide_deck" in str(e.value)
+
+
+def test_poll_explicit_failed_status_raises(export, fake_chapter, monkeypatch):
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    nlm = FakeNLM(status_failed=True)
+    with pytest.raises(RuntimeError):
+        slides.build_slides("circular-motion", nlm=nlm)
+    assert "delete_notebook" in nlm.calls             # still cleans up
+
+
+def test_poll_timeout_raises_timeouterror(export, fake_chapter, monkeypatch):
+    # Never completes within the timeout -> TimeoutError; cleanup still runs.
+    monkeypatch.setenv("SAMAGRA_SLIDES_TIMEOUT", "0")     # immediate timeout
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    nlm = FakeNLM(pending=9999)
+    with pytest.raises(TimeoutError):
+        slides.build_slides("circular-motion", nlm=nlm)
+    assert "delete_notebook" in nlm.calls
+
+
+def test_source_truncation_flag_recorded(export, monkeypatch):
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    monkeypatch.setattr(slides, "_SOURCE_MAX_CHARS", 20)
+    from samagra.lectures import render
+    big = {"title": "Big Chapter Title Here", "sections": [
+        {"title": "S", "blocks": [{"type": "prose", "html": "y" * 500}]}]}
+    monkeypatch.setattr(render, "load_chapter", lambda slug: big)
+    res = slides.build_slides("big", nlm=FakeNLM(pending=0))
+    data = json.loads(Path(res["json"]).read_text(encoding="utf-8"))
+    assert data["source_truncated"] is True
+
+
+def test_preflight_ok(export, fake_chapter, monkeypatch):
+    monkeypatch.setattr(slides.notebooklm_client, "configured", lambda: True)
+    slides.preflight("circular-motion")               # no raise
+
+
+def test_preflight_missing_chapter_raises(export, monkeypatch):
+    from samagra.lectures import render
+    def boom(slug):
+        raise FileNotFoundError(slug)
+    monkeypatch.setattr(render, "load_chapter", boom)
+    monkeypatch.setattr(slides.notebooklm_client, "configured", lambda: True)
+    with pytest.raises(FileNotFoundError):
+        slides.preflight("nope")
+
+
+def test_preflight_unconfigured_raises(export, fake_chapter, monkeypatch):
+    monkeypatch.setattr(slides.notebooklm_client, "configured", lambda: False)
+    with pytest.raises(RuntimeError):
+        slides.preflight("circular-motion")
+
+
+def test_preflight_requires_no_styleseed(export, fake_chapter, monkeypatch, tmp_path):
+    # Unlike samadhan, the slides preflight does NOT require a committed StyleSeed.
+    monkeypatch.setattr(config, "STYLESEED_DIR", tmp_path / "no-styleseed-here")
+    monkeypatch.setattr(slides.notebooklm_client, "configured", lambda: True)
+    slides.preflight("circular-motion")               # no raise despite absent StyleSeed
