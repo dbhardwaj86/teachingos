@@ -19,5 +19,9 @@ requests>=2.31
 anthropic>=0.96
 openai>=2.32  # LLM (Responses) + image (Images) API — Phase F1 figure lane reuses it, no new dep
 
+# Phase F2 slides lane: drives the EXTERNAL `nlm` CLI (Google NotebookLM), an
+# owner-provisioned binary (C:\Users\abc\.local\bin\nlm) — NOT a pip package.
+# `nlm login` is an owner prerequisite. No Python dependency is added for it.
+
 # dev
 pytest>=8.0
