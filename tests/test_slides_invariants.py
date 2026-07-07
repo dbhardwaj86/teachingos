@@ -74,8 +74,14 @@ def test_no_audio_or_video_verb_over_a_full_build(tmp_path, monkeypatch):
     # false-positive on the path, not on any real verb. So we scan only the command
     # tokens: the subcommand group+verb (positions 1..2) and every flag-name token
     # (starts with "-"), skipping the value that follows a value-taking flag.
-    _VALUE_FLAGS = {"-o", "--text", "--id", "--format", "--length",
-                    "--wait-timeout", "--out"}
+    # Free-form value flags — an OS path / chapter text / artifact id / timeout that
+    # can carry a spurious "audio" substring (pytest derives tmp_path from THIS test's
+    # name, so the `-o` download path contains "audio"). Skip those values.
+    _SKIP_VALUE_FLAGS = {"-o", "--out", "--text", "--id", "--wait-timeout"}
+    # Controlled-enum value flags (deck format / length). An audio type smuggled here
+    # (`--format audio`) WOULD be a real regression — this is exactly the flag
+    # create_slides + download_slide_deck use — so SCAN the value too.
+    _CHECK_VALUE_FLAGS = {"--format", "--length"}
     for argv in runner.calls:
         cmd_tokens = list(argv[1:3])                # the nlm <group> <verb>
         i = 3
@@ -83,8 +89,12 @@ def test_no_audio_or_video_verb_over_a_full_build(tmp_path, monkeypatch):
             tok = argv[i]
             if isinstance(tok, str) and tok.startswith("-"):
                 cmd_tokens.append(tok)              # a flag NAME is grammar, keep it
-                if tok in _VALUE_FLAGS:
-                    i += 2                           # skip its VALUE (path/text) token
+                if tok in _SKIP_VALUE_FLAGS:
+                    i += 2                           # skip its free-form VALUE token
+                    continue
+                if tok in _CHECK_VALUE_FLAGS and i + 1 < len(argv):
+                    cmd_tokens.append(argv[i + 1])   # scan the enum VALUE (catches --format audio)
+                    i += 2
                     continue
             i += 1
         joined = " ".join(str(t) for t in cmd_tokens).lower()
@@ -114,11 +124,12 @@ def test_no_audio_or_video_verb_over_a_full_build(tmp_path, monkeypatch):
 # ---------- T17: HTTP 403 + approve-seed skip ----------
 # Bound against the REAL G5 endpoints (verified against samagra/api/app.py's
 # api_factory_build + api_factory_approve_seed and samagra/api/origin_auth.py):
-#   * origin bypass — a plain TestClient request originates from a LOOPBACK client
-#     host, so origin_auth.is_loopback_host passes it (the cloudflared-origin path).
-#     No knob is set; this mirrors the G5 golden happy-path tests exactly. (The G5
-#     origin-gating test instead OVERRIDES _client_host to a remote IP to prove the
-#     gate fires — the inverse direction, not needed here.)
+#   * origin bypass — the suite's autouse conftest fixture sets
+#     config.DISABLE_ORIGIN_AUTH=True (the dev escape hatch), so allow_request short-
+#     circuits before any origin/loopback check. This mirrors the G5 golden happy-
+#     path tests exactly (they rely on the same conftest mechanism). (The dedicated
+#     G5 origin-gating test instead overrides the client host to a remote IP to prove
+#     the gate FIRES — the inverse direction, not needed here.)
 #   * build 403 detail — "the {kind} lane ({pipeline}) is CLI-only — ..." (contains
 #     'cli-only' case-insensitively); the llm/mcd branch fires BEFORE run.build.
 #   * approve-seed response — {"seed_ref": ..., "approved": [...]}; the llm/mcd
