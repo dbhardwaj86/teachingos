@@ -444,3 +444,54 @@ None. A–F are resolved above; the one real codebase risk (publish/G1 treats ar
 single html/json/docx files, not a PNG directory) is resolved by the self-contained
 data-URI gallery + the explicit "loose PNGs not published in F1" boundary (§3.4.4), with a
 publish-compatibility regression pinning it (T16).
+
+---
+
+## 8. Implementation outcome (SHIPPED 2026-07-07)
+
+Built full-auto on branch `feature/content-factory-phase-f1-figures` (Chairman: "go for
+phase F — full auto, carry to completion — use opus subagents only for spec, plan and
+implementation, you orchestrate and take executive decisions"), 14 commits
+`7494ceb..<docs tip>`, subagent-driven TDD (6 plan tasks, a fresh Opus implementer + a
+2-stage spec+quality review per task). Per-task review caught and fixed 5 issues TDD
+(cap≤0 one-billed-call defect; OpenAI vision `detail` knob + SDK shape pin + honest
+partial-write docstring; empty figure build must flow to `changes` not a `validate_product`
+raise; golden PNG-byte round-trip + cost-capped live smoke + documented env defaults).
+
+**⭐ Live image smoke run for real** (`SAMAGRA_LIVE_IMAGE_SMOKE=1`): PASS ~41s — genuine
+gpt-image-1 generation + gpt-5.5 vision-review round-trip on `circular-motion`, PNG + gallery
+written. SAMAGRA's first image artifact.
+
+**Review gate (CLOSED):**
+- **Codex pre-merge review 33** (the DEC-7-style image-network-boundary review) = **GO, 0
+  findings** — `docs/codex-reviews/33-f1-figure-lane-premerge.report.md`.
+- **4-lens adversarial Workflow `wf_e335375a-c12`** (firewall/security/spec/bughunt ×
+  independent refute-verify) = **2 MED confirmed (live-reproduced) + 1 LOW refuted**, both
+  MEDs remediated (`80baf3d`) + independently re-verified FIXED:
+  - **MED#1** — `review_figure` is a per-image call with no index, but `build_figures`
+    matched verdicts on the chapter-global `idx-1`, so figures 2..N always fail-closed to
+    `error`; the 12 multi-`image-need` chapters could never `capture` even with autocapture
+    on, and the artifact + governance note recorded fabricated verdicts. Fixed: take the
+    per-image reply's FIRST verdict as authoritative (empty list still fails closed; unknown
+    verdict string → error). The masking `FakeVisionClient` encoded the wrong shape (full
+    multi-idx list every call) — corrected to per-call single-figure scripts + regression
+    `test_multi_figure_per_image_reviewer_all_ok_zero_errors`.
+  - **MED#2** — blank `SAMAGRA_FIGURE_CAP=` shipped in `.env.example` → `int('')` ValueError
+    at IMPORT of `figure.py` → bricked the entire factory surface (all CLI + `/api/factory/*`),
+    not just the figure lane. Fixed: `_read_cap()` falls back to 6 on blank/non-numeric
+    without crashing (cap≤0 disable preserved); `.env.example` ships concrete
+    `SAMAGRA_FIGURE_CAP=6`.
+
+**DEC-16 RATIFIED 2026-07-07** (orchestrator, under the full-auto delegation): the F1
+figure-lane invariant set — (1) no new prod write path (outbound generation + local files +
+append-only governance rows only; the 7 subsystems read-only); (2) conservative capture —
+`SAMAGRA_FIGURE_AUTOCAPTURE` defaults OFF → every figure build lands `changes`, never a
+silent capture; (3) the DEC-8 reviewer firewall is structural on `review_figure` (no
+StyleSeed); (4) opt-in (`auto_fan=False`, default fan-out unchanged) + structurally
+unreachable over HTTP (kind=llm 403); (5) the publish gate, the inward `build()` + its 5
+crash-safety guards, and the governance schema (no migration) untouched; (6) rollback =
+don't plan the figure lane / unset `SAMAGRA_IMAGE_*`.
+
+**Gate: 771 pytest** (0 failures, 3 skips = the opt-in live image/QX/LLM smokes) **+ 639
+vitest** (frontend untouched). Merged `--ff-only` to local `main`; owner push pending
+(agent `git push` classifier-blocked).

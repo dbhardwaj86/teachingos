@@ -1,5 +1,77 @@
 # SAMAGRA — Handoff
 
+> **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE F1 (the `figure` lane — image-gen physics figures) SHIPPED 2026-07-07 —
+> review gate CLOSED, DEC-16 RATIFIED, merged `--ff-only` to local `main` (⚠ OWNER PUSH PENDING — agent `git
+> push` is classifier-blocked).** Branch `feature/content-factory-phase-f1-figures`, 14 commits
+> `7494ceb..<docs tip>` (incl. remediation `80baf3d` + this tracker sync).
+> Driven by the Chairman's **"go for phase F - full auto, carry to completion — use opus subagents only for spec,
+> plan and implementation, you orchestrate and take executive decisions."** F1 = the FIRST Phase-F heavy/external
+> lane and SAMAGRA's first **image-generation** network boundary. It rides the EXISTING `kind="llm"` synchronous
+> build path (same envelope as the D2 samadhan lane — preflight anti-wedge before `product_building` intent,
+> capture/changes gate, retryable rollback); NO new async-pending state machine.
+> - **Spec + plan** (Opus subagents, orchestrator-ratified under the full-auto delegation): spec
+> `docs/superpowers/specs/2026-07-07-samagra-content-factory-phase-f1-figure-lane-design.md` (RATIFIED; forks
+> locked — **A1** image-need briefs only, **B1** Images API gpt-image-1 b64, **C1** vision review recorded +
+> `SAMAGRA_FIGURE_AUTOCAPTURE` default OFF so every figure build lands `changes`, **D** data-URI gallery HTML =
+> the publishable single-file artifact, **E** no StyleSeed, **F** cap 6 / whole-build-raise / retryable); plan
+> `docs/superpowers/plans/2026-07-07-samagra-content-factory-phase-f1-figure-lane.md` (6 TDD tasks).
+> - **What was built** (6 tasks, subagent-driven TDD, each Opus implementer + 2-lens spec+quality review): new
+> `samagra/clients/image_client.py` (the ONE image call site, OpenAI gpt-image-1, mirrors the llm_client provider
+> pattern — key env-only never logged/repr'd, fail-closed provider/size/quality, `_extract_png` never-leak,
+> injectable fake SDK); `samagra/factory/figure.py` (`_targets` selects the 52 owner-authored `image-need` briefs
+> capped at 6 / `SAMAGRA_FIGURE_CAP`, cap≤0 disables; `build_figures` generates PNGs → per-image vision review
+> (refute-framed, fail-closed) → data-URI gallery HTML + JSON manifest + `fig-NN.png`; `preflight` no-StyleSeed);
+> `llm_client.review_figure` (DEC-8 structural firewall — no StyleSeed param); wiring in `lines.py` (figure Line
+> kind=llm auto_fan=False — default fan-out unchanged) / `dispatch.py` (route + `_assert_figures_present`) /
+> `run.py` (lane-dispatched preflight, `SAMAGRA_FIGURE_AUTOCAPTURE` capture clause read live, the 5 crash-safety
+> guards byte-identical); `.env.example` image block; publish-compat + no-migration goldens; opt-in live smoke.
+> - **⭐ Live image smoke RUN FOR REAL** (`SAMAGRA_LIVE_IMAGE_SMOKE=1`): **PASS ~41s** — genuine gpt-image-1
+> generation + gpt-5.5 vision-review round-trip on `circular-motion`, PNG + gallery written.
+> - **Per-task 2-lens review** caught + fixed 5 issues TDD across the 6 tasks: cap≤0 one-billed-call defect
+> (`7162620`); OpenAI vision `detail` knob + SDK shape pin + honest partial-write docstring (`64465e2`); empty
+> figure build must flow to `changes` not a validate_product raise (`24b2dcd`); golden PNG-byte round-trip +
+> cost-capped live smoke + documented env defaults (`02e26a9`).
+> - **Review gate:** **Codex pre-merge review 33** (the DEC-7-style image-network-boundary review) = **GO, 0
+> findings** (`docs/codex-reviews/33-f1-figure-lane-premerge.report.md`). **4-lens adversarial Workflow**
+> `wf_e335375a-c12` (firewall/security/spec/bughunt × independent refute-verify) = **2 MED confirmed
+> (live-reproduced), 1 LOW refuted** (slug traversal — slug is governance-controlled, not user input):
+>   - **MED#1** `figure.py` — `review_figure` is a PER-IMAGE call with no index, but `build_figures` matched
+>     verdicts on the chapter-global `idx-1`, so figures 2..N always fail-closed to `error`; multi-figure chapters
+>     (12 in the corpus) could NEVER `capture` even with autocapture on, and the artifact/governance note recorded
+>     FABRICATED error verdicts. **FIXED** (`80baf3d`): `build_figures` now takes the reviewer's per-image reply's
+>     FIRST verdict as authoritative (empty list still fails closed; unknown verdict string → error). The old
+>     `FakeVisionClient` encoded the WRONG shape (full multi-idx list every call) which masked the bug — corrected
+>     to per-call single-figure scripts + regression `test_multi_figure_per_image_reviewer_all_ok_zero_errors`.
+>   - **MED#2** `figure.py:29` / `.env.example` — blank `SAMAGRA_FIGURE_CAP=` shipped in the template →
+>     `int('')` ValueError at IMPORT of figure.py → bricked the ENTIRE factory surface (all CLI + all
+>     `/api/factory/*`), not just the figure lane. **FIXED** (`80baf3d`): new `_read_cap()` falls back to 6 on
+>     blank/non-numeric without crashing (cap≤0 disable semantics preserved); `.env.example` now ships concrete
+>     `SAMAGRA_FIGURE_CAP=6`. Both fixes **independently re-verified** (from-scratch repro; fail-closed + DEC-8
+>     firewall confirmed intact; no new issue).
+> - **Invariants (verified by both gates, held):** no new prod write path (image/vision calls are outbound
+> generation; local files + governance rows only; the 7 subsystems read-only); publish gate untouched
+> (autocapture default OFF → never a silent capture); figure lane structurally unreachable over HTTP (kind=llm
+> 403 at `/api/factory/build`, skipped by approve-seed); the 5 build guards byte-identical; samadhan lane
+> behaviorally unchanged; no migration; opt-in lane (auto_fan=False). Figure gallery HTML is publishable via the
+> unchanged G1/G2 path (fork D).
+> - **Gate: 771 pytest** (0 failures, 3 skips = opt-in live image/QX/LLM smokes) **+ 639 vitest** (frontend
+> untouched) + the live image smoke PASS.
+> - **DEC-16 RATIFIED 2026-07-07** (orchestrator, under the Chairman's full-auto Phase-F delegation): the F1
+> figure-lane invariant set — (1) the image/vision calls are outbound generation only; the figure lane adds NO
+> new prod write path (local files under `EXPORT_DIR` + append-only governance rows only; the 7 subsystems stay
+> read-only); (2) image generation of physics diagrams is UNRELIABLE, so capture is conservative by default:
+> `SAMAGRA_FIGURE_AUTOCAPTURE` defaults OFF → every figure build lands `changes` for owner eyes, never a silent
+> capture; (3) the DEC-8 reviewer firewall is structural on the vision reviewer (`review_figure` never receives
+> the StyleSeed); (4) the figure lane is opt-in (`auto_fan=False`, default fan-out unchanged) and structurally
+> unreachable over HTTP (kind=llm 403 at `/api/factory/build`, skipped by approve-seed); (5) the publish gate,
+> the inward `build()` + its 5 crash-safety guards, and the governance schema (no migration) are untouched;
+> (6) rollback = don't plan the figure lane (opt-in), or unset `SAMAGRA_IMAGE_*`.
+> - **▶ IMMEDIATE NEXT:** **owner `git push origin main`** (classifier-blocked for the agent). Then **F2** (the
+> NotebookLM slides lane — needs its own async-pending design + DEC-7-style review; NotebookLM confirmed logged in,
+> 244 notebooks; **NO audio ever**). `/learn` public exposure remains the separate owner deploy step.
+>
+> ---
+>
 > **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ LLM PROVIDER MINI-SLICE (OpenAI backend for the D2 samadhan generation boundary)
 > SHIPPED 2026-07-07 — review gate CLOSED, first-ever LIVE VALIDATION of the D2 generation boundary.** Built on
 > branch `feature/llm-provider-openai`, commits `48e1556..e3ae45f` (5 commits + tracker sync). `samagra/clients/
