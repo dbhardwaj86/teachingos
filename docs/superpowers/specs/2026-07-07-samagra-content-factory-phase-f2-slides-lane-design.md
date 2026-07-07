@@ -248,7 +248,7 @@ A **fake subprocess runner** scripts per-command `{stdout, stderr, returncode}` 
 | T17 | HTTP 403 / approve-seed skip | `kind="llm"` slides lane → `/api/factory/build` 403; `/api/factory/approve-seed` leaves it in-review |
 | T18 | **NO-AUDIO invariant** | over a full `build_slides`, the fake runner is NEVER invoked with an `audio`/`video`/non-slides studio argv |
 | T19 | build() retryable rollback | a `nlm`/timeout raise → `product_build_failed` recorded, intent rolled back, a second build succeeds |
-| T20 | governance untouched | full plan→approve→build→(changes/capture) leaves the `assignments` schema + `governance.db` byte-consistent (no migration) |
+| T20 | governance untouched (no migration) | full plan→approve→build→(changes/capture) leaves `PRAGMA user_version` UNCHANGED, adds NO new table, and does not alter the `assignments` state-machine — it only appends the expected events/rows a normal build writes (mirror F1's `test_figure_golden` no-migration assertion; do NOT assert whole-`governance.db` byte identity, since a build legitimately appends event rows) |
 | T21 | `slides.preflight` | chapter absent → FileNotFoundError; nlm unconfigured → RuntimeError; **no StyleSeed, no API key required** |
 
 ### 5.2 Opt-in owner-run live smoke
