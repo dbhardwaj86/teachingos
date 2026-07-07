@@ -314,3 +314,16 @@ def test_preflight_requires_no_styleseed(export, fake_chapter, monkeypatch, tmp_
     monkeypatch.setattr(config, "STYLESEED_DIR", tmp_path / "no-styleseed-here")
     monkeypatch.setattr(slides.notebooklm_client, "configured", lambda: True)
     slides.preflight("circular-motion")               # no raise despite absent StyleSeed
+
+
+def test_build_slides_clamps_hostile_dl_format_to_pdf(export, fake_chapter, monkeypatch):
+    # A client carrying a path-traversal _dl_format must NOT form the deck path from
+    # it — build_slides clamps an unknown value to pdf at the write boundary.
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    nlm = FakeNLM(pending=0)
+    nlm._dl_format = "../../evil"
+    res = slides.build_slides("circular-motion", nlm=nlm)
+    assert res["deck_format"] == "pdf"
+    assert res["deck"].endswith("deck.pdf")          # path stayed inside the workdir
+    data = json.loads(Path(res["json"]).read_text(encoding="utf-8"))
+    assert data["deck_format"] == "pdf"

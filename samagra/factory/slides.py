@@ -261,6 +261,8 @@ def build_slides(slug, *, nlm=None) -> dict:
         client.create_slides(nb)
         artifact_id = _poll_until_ready(client, nb)
         dl_format = getattr(client, "_dl_format", "pdf")
+        if dl_format not in ("pdf", "pptx"):       # path-forming value — clamp at the write boundary
+            dl_format = "pdf"
         deck_path = workdir / f"deck.{dl_format}"
         client.download_slide_deck(nb, artifact_id, deck_path)
         deck_bytes = deck_path.read_bytes()
