@@ -1381,6 +1381,13 @@ class _FakeNLM:
     _dl_format = "pdf"
 
 
+# The genuine build_slides, captured at import BEFORE any monkeypatch replaces the
+# module attribute — so a helper that injects the fake nlm client never accidentally
+# recurses into a prior fake (the boom->retry sequence in the rollback test would
+# otherwise recurse until RecursionError). Mirrors F1's _REAL_BUILD_FIGURES.
+_REAL_BUILD_SLIDES = slides.build_slides
+
+
 def test_run_line_routes_slides_to_build_slides(monkeypatch, tmp_path):
     monkeypatch.setattr(config, "EXPORT_DIR", tmp_path / "lectures")
     monkeypatch.setattr(slides, "_sleep", lambda s: None)
@@ -1446,7 +1453,7 @@ def envfx(tmp_path, monkeypatch):
 
 def _fake_build_slides_ok(monkeypatch):
     def fake(slug, **kw):
-        return slides.build_slides(slug, nlm=_FakeNLM())
+        return _REAL_BUILD_SLIDES(slug, nlm=_FakeNLM())    # captured real, NOT the patched attr
     monkeypatch.setattr(slides, "build_slides", fake)
 
 
@@ -1498,7 +1505,7 @@ def test_slides_failure_rolls_back_and_is_retryable(envfx, monkeypatch):
         def create_slides(self, nb):
             raise RuntimeError("nlm slides create failed")
     def boom(slug, **kw):
-        return slides.build_slides(slug, nlm=_BoomNLM())
+        return _REAL_BUILD_SLIDES(slug, nlm=_BoomNLM())    # captured real, NOT the patched attr
     monkeypatch.setattr(slides, "build_slides", boom)
     props = run.plan("textbook:circular-motion", dry=False, lane="slides")
     run.approve_seed("textbook:circular-motion")
