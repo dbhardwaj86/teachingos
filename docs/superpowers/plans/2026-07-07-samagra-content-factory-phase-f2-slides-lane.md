@@ -662,19 +662,20 @@ def test_source_text_bounded_not_truncated_when_small():
 def test_source_max_chars_stays_windows_cmdline_safe():
     # The bounded source is passed to `nlm source add --text <text>` as ONE argv
     # element; Windows caps the whole command line at 32767 chars (CreateProcess).
-    # Pin the cap well under that so a max-size chapter can never overflow the live
-    # subprocess call (the Task-1 concern). 24000 leaves headroom for flags +
-    # realistic escaping. list2cmdline only doubles backslashes that precede a `"`
-    # and turns each `"` into `\"`; physics/LaTeX prose has spaces (forces one pair
-    # of surrounding quotes) but near-zero literal double-quotes, so real expansion
-    # is ~+2. A LaTeX-dense max-length sample proves the whole argv stays under 32767.
+    # Pin the cap so a max-size chapter can never overflow the live subprocess call
+    # (the Task-1 concern) — for ANY content, not just prose. list2cmdline's absolute
+    # worst-case expansion is 2x (every char a literal `"` -> `\"`), so we prove BOTH
+    # the adversarial all-quotes bound AND a realistic LaTeX-dense sample stay under
+    # 32767 at the max cap length.
     import subprocess
-    assert slides._SOURCE_MAX_CHARS <= 30000
-    sample = ("The field \\vec{E} = \\frac{kq}{r^2} points radially. " * 1000)
-    sample = sample[:slides._SOURCE_MAX_CHARS]   # max-length LaTeX-dense text
-    argv = ["nlm", "source", "add", "nb_0000000000", "--text", sample,
-            "--wait", "--wait-timeout", "900"]
-    assert len(subprocess.list2cmdline(argv)) < 32767
+    assert slides._SOURCE_MAX_CHARS <= 16000
+    adversarial = '"' * slides._SOURCE_MAX_CHARS   # 2x-expansion worst case
+    realistic = ("The field \\vec{E} = \\frac{kq}{r^2} points radially. " * 1000)[
+        :slides._SOURCE_MAX_CHARS]
+    for text in (adversarial, realistic):
+        argv = ["nlm", "source", "add", "nb_0000000000", "--text", text,
+                "--wait", "--wait-timeout", "900"]
+        assert len(subprocess.list2cmdline(argv)) < 32767
 
 
 # ---------- data-URI wrapper HTML ----------
@@ -763,16 +764,17 @@ _MEDIA_TYPES = {
 
 # Bound the source text fed to `nlm source add --text`; a chapter longer than this
 # is truncated to a prefix (manifest records source_truncated=True). This is ALSO a
-# hard Windows-safety rail: `--text <chapter>` is one argv element, and Windows caps
-# the WHOLE command line at 32767 chars (CreateProcess). subprocess.list2cmdline
-# quotes+escapes the text, so we cap well under the limit (24000 chars leaves ~8KB
-# headroom for flags + worst-case backslash/quote escaping of LaTeX tex). A slide
-# deck is an owner-reviewed summary artifact, so a ~4000-word prefix is an ample
-# seed; if the owner's live smoke shows truncation hurts deck quality, the localized
-# upgrade is to write the text to a temp file and switch add_text_source to
-# `nlm source add --file <tmp>` (the method signature already takes text, not argv,
-# so the swap is internal). Rarely hit — most chapters project well under 24000.
-_SOURCE_MAX_CHARS = 24000
+# HARD, content-independent Windows-safety rail: `--text <chapter>` is one argv
+# element, and Windows caps the WHOLE command line at 32767 chars (CreateProcess).
+# subprocess.list2cmdline's ABSOLUTE worst-case expansion is 2x (every char a literal
+# `"` -> `\"`), so a 16000-char cap can never exceed 32002 for the text arg even
+# adversarially — under the limit for ANY content (not just prose that lacks quote
+# storms). A slide deck is an owner-reviewed summary artifact, so a ~2600-word prefix
+# is an ample seed; if the owner's live smoke shows truncation hurts deck quality,
+# the localized upgrade is to write the text to a temp file and switch add_text_source
+# to `nlm source add --file <tmp>` (the method signature already takes text, not argv,
+# so the swap is internal). Rarely hit — most chapters project well under 16000.
+_SOURCE_MAX_CHARS = 16000
 
 # Decks larger than this (bytes) wrap as a download-only card (no inline <embed>),
 # still self-contained. Overridable via SAMAGRA_SLIDES_EMBED_MAX (default 8MB).
