@@ -17,7 +17,7 @@ from ..bridge.text import item_text
 from . import outbox
 from ..governance import store
 from .. import config
-from . import dispatch, figure, samadhan
+from . import dispatch, figure, samadhan, slides
 from .lines import LINES, classify
 from .seed_payload import build_seed_payload, validate_seed_payload
 
@@ -408,6 +408,8 @@ def build(assignment_id: str) -> dict:
             _slug = seed_ref.split(":", 1)[-1]
             if line == "figure":
                 figure.preflight(_slug)
+            elif line == "slides":
+                slides.preflight(_slug)
             else:
                 samadhan.preflight(_slug)
         # Record intent BEFORE producing (crash-window safe; mirrors bridge submit).
@@ -459,6 +461,8 @@ def build(assignment_id: str) -> dict:
         needs_review = spec.kind == "llm" and (
             result.get("errors", 0) > 0 or result.get("items", 0) == 0)
         if line == "figure" and not config._env_bool("SAMAGRA_FIGURE_AUTOCAPTURE", False):
+            needs_review = True
+        if line == "slides" and not config._env_bool("SAMAGRA_SLIDES_AUTOCAPTURE", False):
             needs_review = True
         status = "changes" if needs_review else "captured"
         store.set_assignment_status(conn, assignment_id, status)

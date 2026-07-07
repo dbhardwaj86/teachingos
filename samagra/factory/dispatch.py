@@ -12,7 +12,7 @@ from pathlib import Path
 
 from ..lectures import export as lex
 from ..clients.mcd_client import McdClient
-from . import deck, figure, paper, samadhan
+from . import deck, figure, paper, samadhan, slides
 from .lines import LINES
 from .seed_payload import validate_seed_payload
 
@@ -48,6 +48,8 @@ def run_line(line: str, slug: str) -> dict:
         return deck.build_deck(slug)
     if line == "figure":
         return figure.build_figures(slug)
+    if line == "slides":
+        return slides.build_slides(slug)
     if spec.kind == "qx":
         return paper.build_paper(slug, variant=line)
     if spec.kind == "mcd":
@@ -91,6 +93,7 @@ def validate_product(line: str, result: dict) -> None:
     _assert_no_answer_leak(line, result)
     _assert_review_clean(line, result)
     _assert_figures_present(line, result)
+    _assert_slides_present(line, result)
 
 
 # Structural answer/solution markers QX uses across its THREE answer renderers,
@@ -189,3 +192,16 @@ def _assert_figures_present(line: str, result: dict) -> None:
         raise ValueError(
             f"line {line!r} produced no non-empty PNG figure — refusing to capture "
             f"a figure gallery with no images")
+
+
+def _assert_slides_present(line: str, result: dict) -> None:
+    """For the slides lane ONLY: the wrapper html check (above) is not enough — a
+    build that produced a wrapper but no working deck file must be refused, not
+    captured. Assert the downloaded deck file exists and is non-empty."""
+    if result.get("variant") != "slides":
+        return
+    deck = result.get("deck")
+    if not (deck and Path(deck).is_file() and Path(deck).stat().st_size > 0):
+        raise ValueError(
+            f"line {line!r} produced no non-empty deck file — refusing to capture "
+            f"a slides wrapper with no deck")

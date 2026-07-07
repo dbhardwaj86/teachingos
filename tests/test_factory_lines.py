@@ -29,10 +29,11 @@ def test_unknown_source_fans_to_nothing():
 
 def test_registry_has_expected_output_labels():
     for key in ("revision", "lecture", "deck", "paper", "drill", "seed", "samadhan",
-                "figure"):
+                "figure", "slides"):
         assert lines.LINES[key].expected_output
     assert set(lines.LINES) == {
-        "revision", "lecture", "deck", "paper", "drill", "seed", "samadhan", "figure"}
+        "revision", "lecture", "deck", "paper", "drill", "seed", "samadhan", "figure",
+        "slides"}
 
 
 def test_munshi_seed_fans_to_the_seed_lane_only():
