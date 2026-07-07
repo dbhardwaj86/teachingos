@@ -274,3 +274,44 @@ def test_repr_has_no_secret(monkeypatch):
     r = repr(c)
     assert "slides" in r or "NotebookLM" in r
     assert "cookie" not in r.lower() and "token" not in r.lower()
+
+
+# ---------- Task 1 review: harden parse + never-leak ----------
+
+def test_parse_notebook_id_anchored_on_label():
+    from samagra.clients.notebooklm_client import _parse_notebook_id
+    assert _parse_notebook_id("Created notebook: nb_abc123\n") == "nb_abc123"
+
+
+def test_parse_notebook_id_ignores_unrelated_colon_lines():
+    from samagra.clients.notebooklm_client import _parse_notebook_id
+    # a URL/title line with colons must NOT be mined as the id (fail-closed).
+    assert _parse_notebook_id(
+        "Notebook URL: https://notebooklm.google.com/notebook/xyz\n") == ""
+
+
+def test_create_notebook_raises_on_unparseable_stdout(monkeypatch):
+    runner = FakeRunner(script=[(
+        lambda a: a[:3] == ["nlm", "notebook", "create"],
+        RunResult(stdout="unexpected output without the label\n", returncode=0))])
+    c = _client(monkeypatch, runner)
+    with pytest.raises(RuntimeError):
+        c.create_notebook("t")
+
+
+def test_run_wraps_unexpected_runner_error_without_leak(monkeypatch):
+    def leaky(args, *, timeout=None):
+        raise ValueError("SECRET-COOKIE=abc123 leaked in a decode error")
+    c = _client(monkeypatch, leaky)
+    with pytest.raises(RuntimeError) as e:
+        c.create_slides("nb_1")
+    assert "slides create" in str(e.value)
+    assert "SECRET-COOKIE" not in str(e.value)
+
+
+def test_configured_false_when_both_markers_present(monkeypatch):
+    monkeypatch.delenv("SAMAGRA_NLM_BIN", raising=False)
+    runner = FakeRunner(script=[(_authed,
+        RunResult(stdout="✓ Authenticated\n✗ Authentication Error\n",
+                  returncode=0))])
+    assert configured(runner=runner) is False   # fail-closed tie-break

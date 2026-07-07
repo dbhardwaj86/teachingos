@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 
 _FORMATS = ("detailed_deck", "presenter_slides")
@@ -42,6 +43,7 @@ def _default_runner(args, *, timeout=None):
     with .stdout / .stderr / .returncode. text=True decodes as UTF-8."""
     return subprocess.run(
         list(args), capture_output=True, text=True, encoding="utf-8",
+        errors="replace",
         timeout=timeout if timeout is not None else _CALL_TIMEOUT)
 
 
@@ -91,6 +93,8 @@ class NotebookLMClient:
             raise RuntimeError(f"nlm {verb} failed: nlm executable not found") from e
         except subprocess.TimeoutExpired as e:
             raise RuntimeError(f"nlm {verb} timed out") from e
+        except Exception as e:  # noqa: BLE001 - never leak: wrap ANY runner error
+            raise RuntimeError(f"nlm {verb} failed: unexpected error") from e
         rc = getattr(res, "returncode", 0)
         if rc != 0:
             raise RuntimeError(f"nlm {verb} failed (exit {rc})")
@@ -141,16 +145,15 @@ class NotebookLMClient:
                 f"length={self._length!r}, download={self._dl_format!r})")
 
 
+_NB_ID_RE = re.compile(r"created notebook:\s*(\S+)", re.IGNORECASE)
+
+
 def _parse_notebook_id(stdout: str) -> str:
     """Best-effort parse of the created notebook id from `nlm notebook create`
-    stdout. nlm prints a line like 'Created notebook: <id>'; take the last
-    whitespace token of the first line that mentions a notebook. Returns '' if
-    nothing parseable (the caller raises)."""
-    for line in (stdout or "").splitlines():
-        low = line.lower()
-        if "notebook" in low and ":" in line:
-            tail = line.rsplit(":", 1)[-1].strip()
-            token = tail.split()[-1] if tail.split() else ""
-            if token:
-                return token
-    return ""
+    stdout (nlm prints 'Created notebook: <id>'). Anchored on the literal label so
+    an unexpected line shape FAILS CLOSED (returns '' -> create_notebook raises)
+    rather than returning a garbage-but-truthy token from an unrelated colon line.
+    The exact live shape is confirmed by the opt-in live smoke; if it differs, the
+    documented fallback is `nlm notebook list --json --quiet` (spec note)."""
+    m = _NB_ID_RE.search(stdout or "")
+    return m.group(1) if m else ""
