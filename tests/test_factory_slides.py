@@ -276,6 +276,31 @@ def test_poll_timeout_raises_timeouterror(export, fake_chapter, monkeypatch):
     assert "delete_notebook" in nlm.calls
 
 
+def test_poll_respects_shared_deadline_already_exhausted(export, monkeypatch):
+    # _poll_until_ready honors an externally-passed (shared) deadline, not a fresh
+    # full timeout — an already-past deadline times out immediately. This is the
+    # mechanism that bounds source-add + poll to ONE SAMAGRA_SLIDES_TIMEOUT budget.
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    import time as _t
+    nlm = FakeNLM(pending=9999)
+    with pytest.raises(TimeoutError):
+        slides._poll_until_ready(nlm, "nb_1", deadline=_t.monotonic() - 1)
+
+
+def test_build_slides_threads_one_shared_deadline(export, fake_chapter, monkeypatch):
+    # build_slides passes a shared absolute deadline into _poll_until_ready (bounding
+    # total time), rather than letting the poll start its own fresh full budget.
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    seen = {}
+    real_poll = slides._poll_until_ready
+    def spy(nlm, nb, *, deadline):
+        seen["deadline"] = deadline
+        return real_poll(nlm, nb, deadline=deadline)
+    monkeypatch.setattr(slides, "_poll_until_ready", spy)
+    slides.build_slides("circular-motion", nlm=FakeNLM(pending=0))
+    assert "deadline" in seen and isinstance(seen["deadline"], float)
+
+
 def test_source_truncation_flag_recorded(export, monkeypatch):
     monkeypatch.setattr(slides, "_sleep", lambda s: None)
     monkeypatch.setattr(slides, "_SOURCE_MAX_CHARS", 20)
@@ -314,6 +339,24 @@ def test_preflight_requires_no_styleseed(export, fake_chapter, monkeypatch, tmp_
     monkeypatch.setattr(config, "STYLESEED_DIR", tmp_path / "no-styleseed-here")
     monkeypatch.setattr(slides.notebooklm_client, "configured", lambda: True)
     slides.preflight("circular-motion")               # no raise despite absent StyleSeed
+
+
+def test_preflight_bad_deck_format_refuses_before_intent(export, fake_chapter, monkeypatch):
+    # A bogus deck-format env knob must refuse in preflight (before build() records
+    # product_building intent), not surface only mid-build (spec §3.6.2 anti-wedge).
+    monkeypatch.setattr(slides.notebooklm_client, "configured", lambda: True)
+    monkeypatch.setenv("SAMAGRA_SLIDES_FORMAT", "bogus_format")
+    with pytest.raises(RuntimeError):
+        slides.preflight("circular-motion")
+
+
+def test_poll_interval_floored_never_busy_loops(monkeypatch):
+    monkeypatch.setenv("SAMAGRA_SLIDES_POLL_INTERVAL", "0")
+    assert slides._poll_interval() >= 1.0
+    monkeypatch.setenv("SAMAGRA_SLIDES_POLL_INTERVAL", "-5")
+    assert slides._poll_interval() >= 1.0
+    monkeypatch.delenv("SAMAGRA_SLIDES_POLL_INTERVAL", raising=False)
+    assert slides._poll_interval() == 15.0    # default unchanged
 
 
 def test_build_slides_clamps_hostile_dl_format_to_pdf(export, fake_chapter, monkeypatch):

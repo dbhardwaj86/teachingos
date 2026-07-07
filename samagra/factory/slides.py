@@ -176,9 +176,10 @@ def _timeout() -> int:
 def _poll_interval() -> float:
     raw = os.environ.get("SAMAGRA_SLIDES_POLL_INTERVAL")
     try:
-        return float(raw) if raw not in (None, "") else 15.0
+        val = float(raw) if raw not in (None, "") else 15.0
     except ValueError:
-        return 15.0
+        val = 15.0
+    return max(1.0, val)   # floor: a 0/tiny interval would busy-loop the real poll
 
 
 def _sleep(seconds: float) -> None:
@@ -189,15 +190,18 @@ def _sleep(seconds: float) -> None:
 
 def preflight(slug: str) -> None:
     """Anti-wedge pre-check (called by build() BEFORE recording intent): the chapter
-    exists and `nlm` is present + authed. NO StyleSeed requirement (NotebookLM
-    composes the deck from the source; there is no SAMAGRA prompt to condition), NO
-    API key (nlm owns the Google creds). Raises FileNotFoundError / RuntimeError
-    without writing anything."""
+    exists, `nlm` is present + authed, and the deck-format env knobs are valid. NO
+    StyleSeed requirement, NO API key (nlm owns the Google creds). Raises
+    FileNotFoundError / RuntimeError without writing anything."""
     render.load_chapter(slug)                           # FileNotFoundError if absent
     if not notebooklm_client.configured():
         raise RuntimeError(
             "nlm is not present or not authenticated (run `nlm login`) — refusing a "
             "slides build without an authed NotebookLM CLI")
+    # Validate the deck-format env knobs BEFORE any intent is recorded (a bogus
+    # SAMAGRA_SLIDES_FORMAT/LENGTH/DOWNLOAD_FORMAT must refuse here, not mid-build).
+    # NotebookLMClient.__init__ validates them and is side-effect-free (no subprocess).
+    notebooklm_client.NotebookLMClient()
 
 
 def _slide_deck_artifact(status: dict) -> dict | None:
@@ -211,13 +215,13 @@ def _slide_deck_artifact(status: dict) -> dict | None:
     return None
 
 
-def _poll_until_ready(nlm, nb: str) -> str:
+def _poll_until_ready(nlm, nb: str, *, deadline: float) -> str:
     """SYNCHRONOUS S1 poll: studio_status until the slide deck is `completed` (return
-    its artifact id), an explicit `failed`/`error` (RuntimeError), or the total
-    SAMAGRA_SLIDES_TIMEOUT elapses (TimeoutError). Bounded on both the per-call
-    subprocess timeout (in the client) and this total timeout. The interval sleep
-    goes through _sleep so tests never wait for real."""
-    deadline = time.monotonic() + _timeout()
+    its artifact id), an explicit `failed`/`error` (RuntimeError), or the SHARED build
+    `deadline` (an absolute time.monotonic() value) elapses (TimeoutError). The deadline
+    is shared with the source-add stage so total build wall-clock stays within one
+    SAMAGRA_SLIDES_TIMEOUT — not a fresh full budget per stage. The interval sleep goes
+    through _sleep so tests never wait for real."""
     interval = _poll_interval()
     while True:
         art = _slide_deck_artifact(nlm.studio_status(nb))
@@ -257,9 +261,13 @@ def build_slides(slug, *, nlm=None) -> dict:
     nb = None
     try:
         nb = client.create_notebook(f"SAMAGRA slides: {slug} {uuid.uuid4().hex[:8]}")
-        client.add_text_source(nb, source_text, wait_timeout=_timeout())
+        # ONE shared wall-clock budget for the two blocking stages (source ingest +
+        # generation poll) so the total honors SAMAGRA_SLIDES_TIMEOUT, not 2x it.
+        deadline = time.monotonic() + _timeout()
+        source_wait = max(1, int(deadline - time.monotonic()))
+        client.add_text_source(nb, source_text, wait_timeout=source_wait)
         client.create_slides(nb)
-        artifact_id = _poll_until_ready(client, nb)
+        artifact_id = _poll_until_ready(client, nb, deadline=deadline)
         dl_format = getattr(client, "_dl_format", "pdf")
         if dl_format not in ("pdf", "pptx"):       # path-forming value — clamp at the write boundary
             dl_format = "pdf"
