@@ -54,6 +54,21 @@ _DEFAULT_EMBED_MAX = 8 * 1024 * 1024
 
 _TAG_RE = re.compile(r"<[^>]+>")
 
+_SAFE_SLUG_RE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
+
+def _assert_safe_slug(slug: str) -> str:
+    """A chapter slug must be a single safe path segment before it forms any
+    EXPORT_DIR output path — defense-in-depth at the write boundary (mirrors the
+    publish store's segment guard + the dl_format clamp). Rejects absolute paths,
+    path separators, drive letters, and `..` traversal. Raises ValueError."""
+    s = str(slug or "")
+    if not _SAFE_SLUG_RE.match(s) or ".." in s:
+        raise ValueError(
+            f"unsafe chapter slug {slug!r} — must be a single safe path segment "
+            f"(letters/digits/._- , no separators / drive / '..')")
+    return s
+
 
 def _embed_max() -> int:
     raw = os.environ.get("SAMAGRA_SLIDES_EMBED_MAX")
@@ -193,6 +208,7 @@ def preflight(slug: str) -> None:
     exists, `nlm` is present + authed, and the deck-format env knobs are valid. NO
     StyleSeed requirement, NO API key (nlm owns the Google creds). Raises
     FileNotFoundError / RuntimeError without writing anything."""
+    _assert_safe_slug(slug)                             # contain the write boundary first
     render.load_chapter(slug)                           # FileNotFoundError if absent
     if not notebooklm_client.configured():
         raise RuntimeError(
@@ -246,6 +262,7 @@ def build_slides(slug, *, nlm=None) -> dict:
     does NOT mask the primary outcome, nor convert a success into a rollback). Any
     step failure or a timeout raises the whole build (no partial RESULT) — build()
     rolls it back retryably. Clears the stale working dir before writing."""
+    _assert_safe_slug(slug)                             # no path formed from an unsafe slug
     content = render.load_chapter(slug)                 # ground truth (raises if absent)
     client = nlm or notebooklm_client.NotebookLMClient()
     source_text, truncated = _source_text_bounded(content)

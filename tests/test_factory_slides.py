@@ -359,6 +359,24 @@ def test_poll_interval_floored_never_busy_loops(monkeypatch):
     assert slides._poll_interval() == 15.0    # default unchanged
 
 
+def test_safe_slug_accepts_real_chapter_slugs():
+    for good in ("circular-motion", "gauss-law", "kinematics-2-d", "electric-dipole"):
+        assert slides._assert_safe_slug(good) == good
+
+
+def test_build_slides_rejects_unsafe_slug(export, monkeypatch):
+    monkeypatch.setattr(slides, "_sleep", lambda s: None)
+    for bad in ("../evil", r"..\evil", "a/b", r"C:\tmp\x", "/etc/x", "a..b", ""):
+        with pytest.raises(ValueError):
+            slides.build_slides(bad, nlm=FakeNLM(pending=0))
+
+
+def test_preflight_rejects_unsafe_slug(export, monkeypatch):
+    monkeypatch.setattr(slides.notebooklm_client, "configured", lambda: True)
+    with pytest.raises(ValueError):
+        slides.preflight("../evil")
+
+
 def test_build_slides_clamps_hostile_dl_format_to_pdf(export, fake_chapter, monkeypatch):
     # A client carrying a path-traversal _dl_format must NOT form the deck path from
     # it — build_slides clamps an unknown value to pdf at the write boundary.
