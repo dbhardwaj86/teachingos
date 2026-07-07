@@ -96,6 +96,19 @@ def test_no_audio_or_video_verb_over_a_full_build(tmp_path, monkeypatch):
     assert ("slides", "create") in verbs
     assert ("download", "slide-deck") in verbs
     assert not any(v[0] == "download" and v[1] in ("audio", "video") for v in verbs)
+    # AIRTIGHT NO-AUDIO pins (the Chairman's ABSOLUTE constraint) — robust to a
+    # future regression the grammar-scan above would miss (it skips bare positional
+    # value tokens, so a hypothetical `nlm studio create audio-overview` with the
+    # type as a positional at argv[3] would slip past the string scan):
+    #  (1) STRUCTURAL — the client class exposes NO audio/video method at all, so no
+    #      audio/video argv can be emitted by construction (spec 4.10). This fails
+    #      the instant someone adds a create_audio/generate_video method.
+    assert not any(("audio" in m.lower() or "video" in m.lower()) for m in dir(client))
+    #  (2) ARGV GROUP — no audio/video command GROUP ever appears (an audio/video
+    #      artifact would be an `audio`/`video` group or `studio create <type>`);
+    #      studio is STATUS-only in this lane, never `studio create`.
+    assert all(a[1] not in ("audio", "video") for a in runner.calls if len(a) > 1)
+    assert ("studio", "create") not in verbs
 
 
 # ---------- T17: HTTP 403 + approve-seed skip ----------
