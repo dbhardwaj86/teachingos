@@ -60,6 +60,13 @@ BOOKLETS_ROOT = _env_path("SAMAGRA_BOOKLETS_ROOT", CLAUDE_BOX / "claude-booklet-
 INSP_ROOT = _env_path("SAMAGRA_INSP_ROOT", CLAUDE_BOX / "claude-INSP-extract")
 SIMS_ROOT = _env_path("SAMAGRA_SIMS_ROOT", CLAUDE_BOX / "pratyaksh-May-deploy")
 
+# --- mycontentdev (mcd — editorial subsystem; the one owner-driven prod write) ---
+# Repointed 2026-07-08 to the claude_khanak_box copy (the deployed-app source of
+# truth). This local dir supplies mcd-cloud.json {apiUrl, adminKey} creds ONLY —
+# actual seed reads/writes hit apiUrl (the cloud worker), never this folder.
+# Env-overridable; rollback = SAMAGRA_MCD_ROOT=C:\SandBox\claude_box\mycontentdev.
+MCD_ROOT = _env_path("SAMAGRA_MCD_ROOT", Path(r"C:\SandBox\claude_khanak_box\mycontentdev"))
+
 # --- online target ---
 QUESTIONDB_URL = os.environ.get(
     "SAMAGRA_QUESTIONDB_URL", "https://dbhardwaj86-questiondb.hf.space"

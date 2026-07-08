@@ -20,8 +20,10 @@ import requests
 from .. import config
 
 _TIMEOUT = 30
-# mycontentdev repo root, sibling of the samagra repo under claude_box.
-_MCD_ROOT = config.CLAUDE_BOX / "mycontentdev"
+# mycontentdev repo root — env-overridable via SAMAGRA_MCD_ROOT (config.MCD_ROOT).
+# Repointed 2026-07-08 to claude_khanak_box\mycontentdev; supplies mcd-cloud.json
+# creds only (actual data hits apiUrl, the deployed worker).
+_MCD_ROOT = config.MCD_ROOT
 
 
 def _load_cloud_json() -> dict:
