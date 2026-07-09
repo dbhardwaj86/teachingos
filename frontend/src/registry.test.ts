@@ -20,13 +20,13 @@ describe("APPS registry", () => {
     expect(APPS.clock).toEqual({ id: "clock", name: "Clock", accent: "#0ea5e9", w: 560, h: 640 });
     expect(APPS.notes).toEqual({ id: "notes", name: "Notes", accent: "#f59e0b", w: 840, h: 600 });
     expect(APPS.snake).toEqual({ id: "snake", name: "Snake", accent: "#22c55e", w: 480, h: 680 });
-    expect(Object.keys(APPS)).toHaveLength(19);
+    expect(Object.keys(APPS)).toHaveLength(22);
   });
   it("ORDER is the exact dock/start order (not alpha, not APPS-key order)", () => {
     expect(ORDER).toEqual([
       "dashboard", "pipelines", "assignments", "org", "questions", "lectures", "booklets",
       "insp", "sims", "mycontentdev", "munshi", "notes", "clock", "terminal", "snake",
-      "activity", "settings", "atlas", "publish",
+      "activity", "settings", "atlas", "publish", "gnocr", "onedpull", "lecturepdf",
     ]);
   });
   it("mobile favorites + min-size constant", () => {
@@ -45,5 +45,16 @@ describe("Publish registration", () => {
   it("registers the publish app and includes it in ORDER", () => {
     expect(APPS.publish).toMatchObject({ id: "publish", name: "Publish" });
     expect(ORDER).toContain("publish");
+  });
+});
+
+describe("Corpus apps registration (Stage B — T3.1)", () => {
+  it("registers gnocr, onedpull, lecturepdf apps in APPS + ORDER", () => {
+    expect(APPS.gnocr).toEqual({ id: "gnocr", name: "GN Brain", accent: "#a16207", w: 1000, h: 680 });
+    expect(APPS.onedpull).toEqual({ id: "onedpull", name: "Corpus Brain", accent: "#b45309", w: 1040, h: 700 });
+    expect(APPS.lecturepdf).toEqual({ id: "lecturepdf", name: "Lecture Brain", accent: "#0369a1", w: 1080, h: 720 });
+    for (const id of ["gnocr", "onedpull", "lecturepdf"] as const) {
+      expect(ORDER).toContain(id);
+    }
   });
 });

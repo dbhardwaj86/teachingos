@@ -62,12 +62,15 @@ _PROTECTED_GETS = frozenset({
 
 def is_protected(method: str, path: str) -> bool:
     """True for the protected mutating POSTs (_PROTECTED_POSTS + the /api/gate/
-    pattern route) + the admin-keyed live + cached reads (_PROTECTED_GETS)."""
+    pattern route) + the admin-keyed live + cached reads (_PROTECTED_GETS) +
+    the whole /api/corpus/ GET namespace (F2: the corpus listing + serve/proxy
+    endpoints reverse-proxy unhardened localhost daemons — owner-only; one
+    startswith branch covers the family, mirroring the /api/gate/ pattern)."""
     method = (method or "").upper()
     if method == "POST":
         return path in _PROTECTED_POSTS or path.startswith("/api/gate/")
     if method == "GET":
-        return path in _PROTECTED_GETS
+        return path in _PROTECTED_GETS or path.startswith("/api/corpus/")
     return False
 
 

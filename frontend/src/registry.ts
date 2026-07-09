@@ -21,12 +21,16 @@ export const APPS: Record<AppId, AppMeta> = {
   snake: { id: "snake", name: "Snake", accent: "#22c55e", w: 480, h: 680 },
   atlas: { id: "atlas", name: "Atlas", accent: "#06b6d4", w: 1040, h: 720 },
   publish: { id: "publish", name: "Publish", accent: "#16a34a", w: 900, h: 600 },
+  // Stage B (T3.1) — windowed corpus apps embedding each corpus's own gated UI.
+  gnocr: { id: "gnocr", name: "GN Brain", accent: "#a16207", w: 1000, h: 680 },
+  onedpull: { id: "onedpull", name: "Corpus Brain", accent: "#b45309", w: 1040, h: 700 },
+  lecturepdf: { id: "lecturepdf", name: "Lecture Brain", accent: "#0369a1", w: 1080, h: 720 },
 };
 
 export const ORDER: AppId[] = [
   "dashboard", "pipelines", "assignments", "org", "questions", "lectures", "booklets",
   "insp", "sims", "mycontentdev", "munshi", "notes", "clock", "terminal", "snake",
-  "activity", "settings", "atlas", "publish",
+  "activity", "settings", "atlas", "publish", "gnocr", "onedpull", "lecturepdf",
 ];
 
 export const MOBILE_FAVORITES: AppId[] = ["dashboard", "notes", "clock", "munshi"];

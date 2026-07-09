@@ -11,8 +11,9 @@
 // pin that theme-driven assembly (FD1) end-to-end through the real stores.
 import { render, screen, fireEvent, act, within } from "@testing-library/react";
 import { describe, it, expect } from "vitest";
-import App, { wmStore, themeStore } from "./App";
+import App, { wmStore, themeStore, APP_DIR } from "./App";
 import { ORDER, APPS } from "./registry";
+import { ICONS } from "./components/icons-data";
 import { THEMES } from "./themes";
 
 // Reset the shared WM store between tests so window assertions are isolated.
@@ -299,6 +300,73 @@ describe("App (right-click context menus — all themes)", () => {
   });
 });
 
+// T1.3 — desktop icons: the labeled icon grid mounts on the bare desktop (PC only),
+// opens apps through the real WM store, must NOT steal the bare-desktop right-click
+// (F6 — the pointerEvents:none wrapper), and is absent in mobile device mode.
+describe("App (desktop icons)", () => {
+  const shell = (c: HTMLElement) =>
+    c.querySelector("#samagra-os-shell") as HTMLElement;
+
+  it("renders labeled desktop icons on the aqua desktop", () => {
+    render(<App />);
+    const grid = screen.getByTestId("desktop-icons");
+    const tiles = within(grid).getAllByTestId("desktop-tile");
+    expect(tiles).toHaveLength(ORDER.length);
+    // a tile captioned with the FULL app name exists, outside any WindowFrame
+    const dash = tiles.find((t) => t.textContent?.includes("Dashboard"));
+    expect(dash).toBeTruthy();
+    expect((dash as HTMLElement).closest('[role="dialog"]')).toBeNull();
+    resetWm();
+  });
+
+  it("opens a window when a desktop icon is clicked", () => {
+    render(<App />);
+    const grid = screen.getByTestId("desktop-icons");
+    const notes = within(grid)
+      .getAllByTestId("desktop-tile")
+      .find((t) => t.textContent?.includes("Notes")) as HTMLElement;
+    fireEvent.click(notes);
+    expect(screen.getByRole("dialog", { name: "Notes" })).toBeInTheDocument();
+    resetWm();
+  });
+
+  it("still opens the desktop context menu on a bare-desktop right-click with DesktopIcons mounted", () => {
+    // F6 regression — the wrapper must not become e.target on empty desktop.
+    const { container } = render(<App />);
+    fireEvent.contextMenu(shell(container));
+    expect(screen.getByText("New Terminal")).toBeInTheDocument();
+    expect(screen.getByText("Appearance")).toBeInTheDocument();
+    resetWm();
+  });
+
+  it("does NOT render desktop icons in mobile device mode", () => {
+    act(() => themeStore.getState().setDevice("mobile"));
+    render(<App />);
+    expect(screen.queryByTestId("desktop-icons")).toBeNull();
+    act(() => themeStore.getState().setDevice("pc"));
+    resetWm();
+  });
+
+  it("renders desktop icons across all three themes", () => {
+    for (const theme of ["aqua", "console", "samagra"] as const) {
+      act(() => themeStore.getState().setTheme(theme));
+      const { unmount } = render(<App />);
+      const grid = screen.getByTestId("desktop-icons");
+      expect(within(grid).getAllByTestId("desktop-tile")).toHaveLength(ORDER.length);
+      // click an icon → its window mounts ABOVE the grid (higher z than wrapper z=1)
+      const term = within(grid)
+        .getAllByTestId("desktop-tile")
+        .find((t) => t.textContent?.includes("Terminal")) as HTMLElement;
+      fireEvent.click(term);
+      const win = screen.getByRole("dialog", { name: "Terminal" });
+      expect(Number((win as HTMLElement).style.zIndex)).toBeGreaterThan(1);
+      resetWm();
+      unmount();
+    }
+    resetTheme();
+  });
+});
+
 // E3 — switching the device store to `mobile` swaps the whole desktop shell for
 // the phone frame; opening an app shows it full-screen and Home returns to the
 // grid. Pins the device-driven assembly end-to-end through the real stores.
@@ -346,5 +414,28 @@ describe("App (E3 mobile device mode)", () => {
     expect(screen.getByTestId("mobile-grid")).toBeInTheDocument();
     resetDevice();
     resetWm();
+  });
+});
+
+// T3.1 — corpus apps registration (Stage B). ORDER-driven surfaces (Dock, Rail,
+// StartMenu, Mobile, DesktopIcons) pick these up automatically via ORDER.
+describe("corpus apps wiring (T3.1)", () => {
+  it("registers gnocr, onedpull, lecturepdf apps", () => {
+    for (const id of ["gnocr", "onedpull", "lecturepdf"] as const) {
+      expect(APPS[id]).toBeTruthy();
+      expect(ORDER).toContain(id);
+      expect(ICONS[id]).toBeTruthy();
+      expect(APP_DIR[id]).toBeTruthy();
+    }
+    expect(APP_DIR.gnocr).toBe("GnBrain");
+    expect(APP_DIR.onedpull).toBe("CorpusBrain");
+    expect(APP_DIR.lecturepdf).toBe("LectureBrain");
+  });
+
+  it("every ORDER id has an icon path", () => {
+    for (const id of ORDER) {
+      expect(ICONS[id], `ICONS["${id}"]`).toBeTruthy();
+      expect(ICONS[id].trim().length).toBeGreaterThan(0);
+    }
   });
 });

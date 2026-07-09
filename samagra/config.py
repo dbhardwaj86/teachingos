@@ -67,6 +67,29 @@ SIMS_ROOT = _env_path("SAMAGRA_SIMS_ROOT", CLAUDE_BOX / "pratyaksh-May-deploy")
 # Env-overridable; rollback = SAMAGRA_MCD_ROOT=C:\SandBox\claude_box\mycontentdev.
 MCD_ROOT = _env_path("SAMAGRA_MCD_ROOT", Path(r"C:\SandBox\claude_khanak_box\mycontentdev"))
 
+# --- read-only corpus subsystems (desktop-icons-corpus-apps slice) ---
+# Three foreign corpora exposed as READ-ONLY source subsystems: adapters read
+# via sqlite mode=ro / filesystem only; the /api/corpus/* serve endpoints
+# reverse-proxy each corpus's own local daemon (GET-only, positive-allowlisted,
+# ORIGIN-GATED). SAMAGRA never writes into any corpus root.
+GNOCR_ROOT = _env_path("SAMAGRA_GNOCR_ROOT", Path(r"C:\SandBox\claude_box\claude-GN-OCR"))
+GNOCR_BRAIN_DB = _env_path("SAMAGRA_GNOCR_BRAIN_DB", GNOCR_ROOT / "_brain" / "catalog.db")
+ONEDPULL_ROOT = _env_path("SAMAGRA_ONEDPULL_ROOT", Path(r"C:\SandBox\gemini_box\onedpulls"))
+ONEDPULL_BRAIN_DB = _env_path(
+    "SAMAGRA_ONEDPULL_BRAIN_DB", ONEDPULL_ROOT / "_brain" / "catalog.db")
+LECTUREPDF_ROOT = _env_path("SAMAGRA_LECTUREPDF_ROOT", Path(r"C:\SandBox\claude_box\lecturepdfs"))
+LECTUREPDF_BRAIN = _env_path("SAMAGRA_LECTUREPDF_BRAIN", LECTUREPDF_ROOT / "brain")
+# Live daemon base URLs (optional localhost sidecars; may be down — the listing
+# endpoints read the local stores directly, only the embedded live UI degrades).
+# Each *_ALLOWED_HOSTS sibling copies the QX_SERVER_ALLOWED_HOSTS SSRF pattern:
+# loopback always allowed; anything else must be explicitly opted in.
+GNOCR_SERVER_URL = os.environ.get("SAMAGRA_GNOCR_SERVER_URL", "http://127.0.0.1:8931")
+GNOCR_SERVER_ALLOWED_HOSTS = os.environ.get("SAMAGRA_GNOCR_SERVER_ALLOWED_HOSTS", "")
+ONEDPULL_SERVER_URL = os.environ.get("SAMAGRA_ONEDPULL_SERVER_URL", "http://127.0.0.1:8137")
+ONEDPULL_SERVER_ALLOWED_HOSTS = os.environ.get("SAMAGRA_ONEDPULL_SERVER_ALLOWED_HOSTS", "")
+LECTUREPDF_SERVER_URL = os.environ.get("SAMAGRA_LECTUREPDF_SERVER_URL", "http://127.0.0.1:8000")
+LECTUREPDF_SERVER_ALLOWED_HOSTS = os.environ.get("SAMAGRA_LECTUREPDF_SERVER_ALLOWED_HOSTS", "")
+
 # --- online target ---
 QUESTIONDB_URL = os.environ.get(
     "SAMAGRA_QUESTIONDB_URL", "https://dbhardwaj86-questiondb.hf.space"

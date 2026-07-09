@@ -30,7 +30,9 @@ engine (`:8783`, retired from defaults 2026-07-06) is a rollback option only.
 > structural 403 before any factory code runs — the one production-write path, the
 > mcd `seed` lane, keeps zero HTTP triggers) — plus the four protected GETs
 > (`GET /api/munshi/library`, `GET /api/mcd/seeds`, `GET /api/search`,
-> `GET /api/assignments`). The authoritative list is
+> `GET /api/assignments`) and (since the corpus-apps slice) the whole
+> **`GET /api/corpus/*`** namespace via a startswith-prefix branch (the corpus
+> listing + reverse-proxy serve endpoints — owner-only, F2). The authoritative list is
 > `_PROTECTED_POSTS`/`_PROTECTED_GETS` in `samagra/api/origin_auth.py` — keep this
 > paragraph in sync with it.
 > **Deliberately public (by design, DEC-11/DEC-12):** `GET /api/published*`,
@@ -254,6 +256,29 @@ Also remove the Access application in the Zero Trust dashboard if retiring the h
   1-2 — still deterministic and answer-free, just not byte-identical to
   pre-Slice-R output.
   See `.env.example`'s QX sidecar block for the full commented recipe.
+
+- **Corpus-brain sidecars are OPTIONAL** (desktop-icons-corpus-apps slice).
+  The three read-only corpus apps (`/api/corpus/{gnocr,onedpull,lecturepdf}`)
+  list from the local stores even when the daemons are down; only the embedded
+  live UI degrades to the in-app offline card. Every `/api/corpus/*` GET is
+  **origin-gated** (the `is_protected` `/api/corpus/` prefix branch) and the
+  serve endpoints are a GET-only, positive-allowlisted reverse proxy — keep all
+  three ports internal; only `:8799` is tunnelled. Launch commands:
+  ```
+  # GN Brain (handwritten OCR)         -> http://127.0.0.1:8931
+  cd C:\SandBox\claude_box\claude-GN-OCR\_brain
+  python scripts\webui.py --port 8931
+
+  # Corpus Brain (onedpulls)           -> http://127.0.0.1:8137
+  cd C:\SandBox\gemini_box\onedpulls\_brain
+  C:\Python314\python.exe scripts\webui.py --port 8137
+
+  # Lecture Brain (lecturepdfs)        -> http://127.0.0.1:8000
+  cd C:\SandBox\claude_box\lecturepdfs\brain
+  .venv\Scripts\python.exe -m uvicorn api.app:app --host 127.0.0.1 --port 8000
+  ```
+  Env overrides live in `.env.example`'s corpus block
+  (`SAMAGRA_{GNOCR,ONEDPULL,LECTUREPDF}_{ROOT,SERVER_URL,...}`).
 
 ### LAN demo mode (Chairman ruling 2026-07-06)
 

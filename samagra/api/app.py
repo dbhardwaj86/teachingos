@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 import samagra
-from . import origin_auth
+from . import corpus_proxy, origin_auth
 from .. import catalog, config, questions_proxy, scheduler, sims_manifest, state
 from ..adapters import get_adapter
 from ..clients import McdClient, MunshiClient, QxClient
@@ -207,6 +207,47 @@ def api_coverage_concept(concept_id: int):
     if dossier is None:
         raise HTTPException(status_code=404, detail=f"unknown concept {concept_id}")
     return dossier
+
+
+# -- read-only corpus subsystems (ORIGIN-GATED via the /api/corpus/ prefix
+# branch in origin_auth.is_protected — F2). Listing reads the local store
+# directly (works with the daemon DOWN); serve reverse-proxies the corpus's
+# own localhost daemon through the allowlisted, GET-only CorpusProxy (F4/F5).
+_CORPUS_NAMES = frozenset({"gnocr", "onedpull", "lecturepdf"})
+_CORPUS_LIST_CAP = 200  # bounded artifact list on the listing endpoint
+
+
+@app.get("/api/corpus/{name}")
+def api_corpus_list(name: str):
+    if name not in _CORPUS_NAMES:
+        raise HTTPException(status_code=404, detail=f"unknown corpus {name!r}")
+    adapter = get_adapter(name)
+    if adapter is None or not adapter.available():
+        # graceful-empty — missing root/store is a 200, never a 500
+        return {"corpus": name, "available": False, "summary": {}, "artifacts": []}
+    arts = []
+    for a in adapter.artifacts():
+        arts.append(asdict(a))
+        if len(arts) >= _CORPUS_LIST_CAP:
+            break
+    return {"corpus": name, "available": True,
+            "summary": adapter.summary(), "artifacts": arts}
+
+
+@app.get("/api/corpus/{name}/serve/{path:path}")
+def api_corpus_serve(name: str, path: str, request: Request):
+    if name not in _CORPUS_NAMES:
+        raise HTTPException(status_code=404, detail=f"unknown corpus {name!r}")
+    proxy = corpus_proxy.get_proxy(name)
+    status, media_type, body = proxy.serve(
+        "/" + path, method="GET", query=request.url.query or "")
+    # F1: same-origin trusted owner app behind the origin gate — nosniff +
+    # no-referrer, deliberately NO `sandbox` CSP (an opaque origin would break
+    # the pages' same-origin fetches; the Pratham published-artifact CSP
+    # precedent is a different, untrusted-bytes case and stays untouched).
+    return Response(content=body, status_code=status, media_type=media_type,
+                    headers={"X-Content-Type-Options": "nosniff",
+                             "Referrer-Policy": "no-referrer"})
 
 
 # -- G2 outward read surface (public, read-only) ------------------------

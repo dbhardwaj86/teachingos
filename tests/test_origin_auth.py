@@ -271,3 +271,15 @@ def test_protected_posts_count_is_nine():
     # Documents the growth 6 -> 9 this slice makes (spec §4); a future slice bumping
     # this further should update the count deliberately, not by accident.
     assert len(origin_auth._PROTECTED_POSTS) == 9
+
+
+# --- /api/corpus/ GET prefix branch (F2, desktop-icons-corpus-apps slice) ---
+def test_is_protected_gets_corpus_prefix_branch():
+    # the whole /api/corpus/ namespace is gated by ONE startswith branch
+    assert origin_auth.is_protected("GET", "/api/corpus/x") is True
+    assert origin_auth.is_protected("GET", "/api/corpus/gnocr") is True
+    assert origin_auth.is_protected("GET", "/api/corpus/onedpull/serve/api/stats") is True
+    # no regression to the existing exact-match set / public reads
+    assert origin_auth.is_protected("GET", "/api/coverage") is False
+    assert origin_auth.is_protected("GET", "/api/published") is False
+    assert origin_auth.is_protected("GET", "/api/corpusless") is False  # prefix, not substring

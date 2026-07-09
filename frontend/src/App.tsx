@@ -48,6 +48,7 @@ import Taskbar from "./shell/Taskbar";
 import StartMenu from "./shell/StartMenu";
 import WindowFrame from "./shell/WindowFrame";
 import ContextMenu, { type ContextMenuItem } from "./shell/ContextMenu";
+import DesktopIcons from "./shell/DesktopIcons";
 import Mobile from "./shell/Mobile";
 
 // Wire the two stores once for the app lifetime (WM first, theme references it).
@@ -57,7 +58,7 @@ const themeStore = createThemeStore({ wm: wmStore });
 // Map an AppId to its `apps/<Dir>` folder. The dynamic import below is built from a
 // VARIABLE specifier so the bundler does not statically resolve it at build time —
 // this is what keeps App.tsx compilable before the leaf app files land.
-const APP_DIR: Record<AppId, string> = {
+export const APP_DIR: Record<AppId, string> = {
   dashboard: "Dashboard",
   pipelines: "Pipelines",
   assignments: "Assignments",
@@ -77,6 +78,9 @@ const APP_DIR: Record<AppId, string> = {
   snake: "Snake",
   atlas: "Atlas",
   publish: "Publish",
+  gnocr: "GnBrain",
+  onedpull: "CorpusBrain",
+  lecturepdf: "LectureBrain",
 };
 
 // Appearance radio rows for the desktop menu (README §Context menus — theme checks).
@@ -148,6 +152,19 @@ export default function App() {
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 1000);
     return () => clearInterval(t);
+  }, []);
+
+  // Viewport size for the desktop-icon grid — tracked on window resize so the
+  // icons re-flow inside the theme work area (cleared on unmount, T1.3).
+  const [vp, setVp] = useState(() => ({
+    vw: window.innerWidth || 1440,
+    vh: window.innerHeight || 900,
+  }));
+  useEffect(() => {
+    const onResize = () =>
+      setVp({ vw: window.innerWidth || 1440, vh: window.innerHeight || 900 });
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
   }, []);
 
   // Context-menu openers — one per right-click surface (README §Context menus).
@@ -361,6 +378,23 @@ export default function App() {
         activeTitle={active ? APPS[active.app].name : ""}
         clock={fmtClock(now)}
         onOpenClock={() => openApp("clock")}
+      />
+
+      {/* Desktop icon grid — labeled full-name launchers on the bare desktop
+          (Task 1). pointerEvents:none wrapper (F6) so the shell root's
+          e.target===e.currentTarget bare-desktop right-click still works; each
+          tile is pointerEvents:auto, dismisses menus on click (F9), and sits at
+          zIndex 1 — behind every WindowFrame. PC branch only (not mobile). */}
+      <DesktopIcons
+        theme={theme}
+        vw={vp.vw}
+        vh={vp.vh}
+        onOpen={openApp}
+        onAppContextMenu={openAppMenu}
+        onDismiss={() => {
+          setMenu(null);
+          setStartOpen(false);
+        }}
       />
 
       {windows.map((win) => {

@@ -212,3 +212,328 @@ def test_subsystem_adapters_registered():
     assert {"mycontentdev", "munshi"} <= names
     assert isinstance(get_adapter("mycontentdev"), McdAdapter)
     assert isinstance(get_adapter("munshi"), MunshiAdapter)
+
+
+# ---------------- Corpus adapters (T2.2-T2.5: gnocr / onedpull / lecturepdf) ----------------
+import json as _json
+import sqlite3 as _sqlite3
+
+import pytest as _pytest
+
+from samagra import config as _config
+from samagra.adapters.gnocr import GnocrAdapter
+from samagra.adapters.lecturepdf import LecturepdfAdapter
+from samagra.adapters.onedpull import OnedpullAdapter
+
+
+@_pytest.fixture
+def gnocr_db(tmp_path, monkeypatch):
+    db = tmp_path / "_brain" / "catalog.db"
+    db.parent.mkdir(parents=True)
+    c = _sqlite3.connect(db)
+    c.executescript(
+        """
+        CREATE TABLE documents (id INTEGER PRIMARY KEY, file_id INTEGER, title TEXT,
+                                page_count INTEGER);
+        CREATE TABLE topics (id INTEGER PRIMARY KEY, parent_id INTEGER, name TEXT,
+                             ncert_ref TEXT);
+        CREATE TABLE doc_topics (doc_id INTEGER, topic_id INTEGER);
+        CREATE TABLE chunks (id INTEGER PRIMARY KEY, doc_id INTEGER, text_md TEXT);
+        INSERT INTO documents VALUES (1, 1, 'Rotation Notes', 12), (2, 2, 'Optics Sheet', 5);
+        INSERT INTO topics VALUES (7, NULL, 'Rotational Motion', 'ch7');
+        INSERT INTO doc_topics VALUES (1, 7);
+        INSERT INTO chunks VALUES (1, 1, 'torque'), (2, 1, 'inertia'), (3, 2, 'lens');
+        """)
+    c.commit()
+    c.close()
+    monkeypatch.setattr(_config, "GNOCR_ROOT", tmp_path)
+    monkeypatch.setattr(_config, "GNOCR_BRAIN_DB", db)
+    return db
+
+
+def test_gnocr_adapter_identity():
+    ad = GnocrAdapter()
+    assert ad.name == "gnocr"
+    assert ad.label == "GN Brain (Handwritten)"
+
+
+def test_gnocr_available_true_when_db_exists(gnocr_db):
+    assert GnocrAdapter().available() is True
+
+
+def test_gnocr_available_false_when_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(_config, "GNOCR_BRAIN_DB", tmp_path / "nope" / "catalog.db")
+    assert GnocrAdapter().available() is False
+
+
+def test_gnocr_summary_counts(gnocr_db):
+    assert GnocrAdapter().summary() == {"documents": 2, "topics": 1, "chunks": 3}
+
+
+def test_gnocr_artifacts_field_by_field(gnocr_db):
+    arts = sorted(GnocrAdapter().artifacts(), key=lambda a: a.uid)
+    assert len(arts) == 2
+    a = arts[0]
+    assert a.uid == "gnocr:1"
+    assert a.source == "gnocr"
+    assert a.kind == "chapter"
+    assert a.title == "Rotation Notes"
+    assert a.subject == "physics"
+    assert a.meta == {"page_count": 12, "topic": "Rotational Motion"}
+    b = arts[1]
+    assert b.uid == "gnocr:2"
+    assert b.meta == {"page_count": 5, "topic": None}
+    # coarse altitude only: no answer/solution fields anywhere
+    dump = _json.dumps([x.row() for x in arts])
+    assert "answer" not in dump and "solution" not in dump
+
+
+def test_gnocr_registered():
+    assert "gnocr" in {a.name for a in ALL_ADAPTERS}
+    assert isinstance(get_adapter("gnocr"), GnocrAdapter)
+
+
+def test_gnocr_reads_readonly(gnocr_db, monkeypatch):
+    from samagra.adapters import gnocr as mod
+    seen = []
+    real = mod.sqlite3.connect
+
+    def spy(database, *a, **kw):
+        seen.append((database, kw))
+        return real(database, *a, **kw)
+
+    monkeypatch.setattr(mod.sqlite3, "connect", spy)
+    GnocrAdapter().summary()
+    assert seen, "expected a sqlite connect"
+    uri, kw = seen[0]
+    assert "mode=ro" in uri and kw.get("uri") is True
+    assert "immutable" not in uri  # WAL corpus - the Slice-R lesson
+
+
+@_pytest.fixture
+def onedpull_db(tmp_path, monkeypatch):
+    db = tmp_path / "_brain" / "catalog.db"
+    db.parent.mkdir(parents=True)
+    c = _sqlite3.connect(db)
+    c.executescript(
+        """
+        CREATE TABLE documents (id INTEGER PRIMARY KEY, file_id INTEGER, kind TEXT,
+                                title TEXT, exam TEXT, year TEXT, pages INTEGER);
+        CREATE TABLE topics (id INTEGER PRIMARY KEY, parent_id INTEGER, name TEXT,
+                             ncert_ref TEXT);
+        CREATE TABLE questions (id INTEGER PRIMARY KEY, doc_id INTEGER, answer TEXT,
+                                solution_md TEXT);
+        INSERT INTO documents VALUES
+          (10, 1, 'test_paper', 'JEE Mock 3', 'JEE', '2025', 8),
+          (11, 2, 'notes', 'Waves Notes', NULL, NULL, 20),
+          (12, 3, 'book', 'HCV Vol 1', NULL, '1999', 300);
+        INSERT INTO topics VALUES (1, NULL, 'Waves', 'ch15'), (2, NULL, 'Optics', 'ch9');
+        INSERT INTO questions VALUES
+          (100, 10, 'SECRET_ANS_B', 'SECRET_SOLUTION_MD'),
+          (101, 10, 'SECRET_ANS_C', 'SECRET_SOLUTION_MD2');
+        """)
+    c.commit()
+    c.close()
+    monkeypatch.setattr(_config, "ONEDPULL_ROOT", tmp_path)
+    monkeypatch.setattr(_config, "ONEDPULL_BRAIN_DB", db)
+    return db
+
+
+def test_onedpull_adapter_identity():
+    ad = OnedpullAdapter()
+    assert ad.name == "onedpull"
+    assert ad.label == "Corpus Brain (onedpulls)"
+
+
+def test_onedpull_available_true_when_db_exists(onedpull_db):
+    assert OnedpullAdapter().available() is True
+
+
+def test_onedpull_available_false_when_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(_config, "ONEDPULL_BRAIN_DB", tmp_path / "nope.db")
+    assert OnedpullAdapter().available() is False
+
+
+def test_onedpull_summary_counts(onedpull_db):
+    # counts ONLY - no question stems/answers ever enter the catalog
+    assert OnedpullAdapter().summary() == {"documents": 3, "questions": 2, "topics": 2}
+
+
+def test_onedpull_artifacts_field_by_field(onedpull_db):
+    arts = sorted(OnedpullAdapter().artifacts(), key=lambda a: a.uid)
+    assert len(arts) == 3
+    a = arts[0]
+    assert a.uid == "onedpull:doc:10"
+    assert a.source == "onedpull"
+    assert a.kind == "paper"           # test_paper -> paper
+    assert a.title == "JEE Mock 3"
+    assert a.subject == "physics"
+    assert a.meta == {"kind": "test_paper", "exam": "JEE", "year": "2025", "pages": 8}
+    assert arts[1].kind == "chapter"   # notes -> chapter
+    assert arts[2].kind == "booklet"   # book -> booklet
+    # catalog-boundary answer-leak firewall: no answer/solution content anywhere
+    dump = _json.dumps([x.row() for x in arts])
+    assert "SECRET_ANS" not in dump and "SECRET_SOLUTION" not in dump
+    assert "solution_md" not in dump
+
+
+def test_onedpull_registered():
+    assert "onedpull" in {a.name for a in ALL_ADAPTERS}
+    assert isinstance(get_adapter("onedpull"), OnedpullAdapter)
+
+
+@_pytest.fixture
+def lecturepdf_brain(tmp_path, monkeypatch):
+    data = tmp_path / "brain" / "data"
+    data.mkdir(parents=True)
+    src1 = "C:/X/Batch A (2026-27)/Physics/Electro/Electro, lec-01 (18-06-26)._Extracted.docx"
+    src2 = "C:/X/Batch A (2026-27)/Physics/Electro/Electro, lec-02 (19-06-26)._Extracted.docx"
+    rows = [
+        {"id": "e__l1__s0", "topic": "electrostatics", "lecture_no": "1",
+         "date": "2026-06-18", "type": "concept", "source_path": src1, "text": "t1"},
+        {"id": "e__l1__s1", "topic": "electrostatics", "lecture_no": "1",
+         "date": "2026-06-18", "type": "example", "source_path": src1, "text": "t2"},
+        {"id": "e__l2__s0", "topic": "electrostatics", "lecture_no": "2",
+         "date": "2026-06-19", "type": "concept", "source_path": src2, "text": "t3"},
+    ]
+    with (data / "corpus.jsonl").open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(_json.dumps(r) + "\n")
+    (data / "examples.json").write_text(_json.dumps([{"id": 1}, {"id": 2}]), encoding="utf-8")
+    monkeypatch.setattr(_config, "LECTUREPDF_ROOT", tmp_path)
+    monkeypatch.setattr(_config, "LECTUREPDF_BRAIN", tmp_path / "brain")
+    return tmp_path / "brain"
+
+
+def test_lecturepdf_adapter_identity():
+    ad = LecturepdfAdapter()
+    assert ad.name == "lecturepdf"
+    assert ad.label == "Lecture Brain"
+
+
+def test_lecturepdf_available_true_when_corpus_jsonl_exists(lecturepdf_brain):
+    assert LecturepdfAdapter().available() is True
+
+
+def test_lecturepdf_available_false_when_missing(tmp_path, monkeypatch):
+    monkeypatch.setattr(_config, "LECTUREPDF_BRAIN", tmp_path / "nope")
+    assert LecturepdfAdapter().available() is False
+
+
+def test_lecturepdf_summary_counts(lecturepdf_brain):
+    assert LecturepdfAdapter().summary() == {
+        "lectures": 2, "topics": 1, "examples": 2, "chunks": 3}
+
+
+def test_lecturepdf_artifacts(lecturepdf_brain):
+    arts = sorted(LecturepdfAdapter().artifacts(), key=lambda a: a.uid)
+    assert len(arts) == 2
+    a = arts[0]
+    assert a.uid == "lecturepdf:batch-a-2026-27/electrostatics-1-2026-06-18"
+    assert a.source == "lecturepdf"
+    assert a.kind == "chapter"
+    assert a.subject == "physics"
+    assert a.meta == {"batch": "Batch A (2026-27)", "topic": "electrostatics",
+                      "lecture_no": "1", "date": "2026-06-18"}
+    assert arts[1].uid == "lecturepdf:batch-a-2026-27/electrostatics-2-2026-06-19"
+
+
+def test_lecturepdf_part_files_same_lecture_merge_to_one_uid(tmp_path, monkeypatch):
+    """Two source PDFs for the SAME (batch, topic, lecture_no) — a lecture split
+    into part 1 / part 2 — must NOT collapse into colliding uids (the review-MED:
+    91 live lectures silently last-write-wins dropped by catalog's uid PK)."""
+    data = tmp_path / "brain" / "data"
+    data.mkdir(parents=True)
+    p1 = "C:/X/Batch A (2026-27)/Physics/Cap/Capacitance, Lec - 05 Part 1._Extracted.docx"
+    p2 = "C:/X/Batch A (2026-27)/Physics/Cap/Capacitance lec-05 part-2._Extracted.docx"
+    rows = [
+        {"id": "c__l5__s0", "topic": "capacitance", "lecture_no": "5",
+         "date": "2026-06-18", "type": "concept", "source_path": p1, "text": "t1"},
+        {"id": "c__l5b__s0", "topic": "capacitance", "lecture_no": "5",
+         "date": "2026-06-18", "type": "concept", "source_path": p2, "text": "t2"},
+    ]
+    with (data / "corpus.jsonl").open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(_json.dumps(r) + "\n")
+    monkeypatch.setattr(_config, "LECTUREPDF_BRAIN", tmp_path / "brain")
+    arts = list(LecturepdfAdapter().artifacts())
+    uids = [a.uid for a in arts]
+    assert len(uids) == len(set(uids)), f"colliding uids: {uids}"
+    # the two part-files are ONE lecture — merged into a single artifact
+    assert uids == ["lecturepdf:batch-a-2026-27/capacitance-5-2026-06-18"]
+    assert LecturepdfAdapter().summary()["lectures"] == 1
+
+
+def test_lecturepdf_same_triple_different_dates_are_distinct_lectures(tmp_path, monkeypatch):
+    """Two rows with the SAME (batch, topic, lecture_no) but DIFFERENT dates are
+    genuinely distinct lectures (different course runs) — must yield 2 artifacts
+    with distinct uids, not first-write-wins collapse (review F-1)."""
+    data = tmp_path / "brain" / "data"
+    data.mkdir(parents=True)
+    p1 = "C:/X/Batch A (2026-27)/Physics/Grav/Gravitation lec-03 (10-05-26)._Extracted.docx"
+    p2 = "C:/X/Batch A (2026-27)/Physics/Grav/Gravitation lec-03 (12-06-26)._Extracted.docx"
+    rows = [
+        {"id": "g__l3a__s0", "topic": "gravitation", "lecture_no": "3",
+         "date": "2026-05-10", "type": "concept", "source_path": p1, "text": "t1"},
+        {"id": "g__l3b__s0", "topic": "gravitation", "lecture_no": "3",
+         "date": "2026-06-12", "type": "concept", "source_path": p2, "text": "t2"},
+    ]
+    with (data / "corpus.jsonl").open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(_json.dumps(r) + "\n")
+    monkeypatch.setattr(_config, "LECTUREPDF_BRAIN", tmp_path / "brain")
+    arts = sorted(LecturepdfAdapter().artifacts(), key=lambda a: a.uid)
+    uids = [a.uid for a in arts]
+    assert len(uids) == 2 and len(set(uids)) == 2, f"collapsed: {uids}"
+    assert uids == [
+        "lecturepdf:batch-a-2026-27/gravitation-3-2026-05-10",
+        "lecturepdf:batch-a-2026-27/gravitation-3-2026-06-12",
+    ]
+    assert LecturepdfAdapter().summary()["lectures"] == 2
+
+
+def test_lecturepdf_empty_date_keeps_legacy_uid_shape(lecturepdf_brain):
+    """Rows with no date keep the historical uid shape (no trailing dash)."""
+    data = lecturepdf_brain / "data"
+    rows = [
+        {"id": "m__l7__s0", "topic": "magnetism", "lecture_no": "7",
+         "source_path": "C:/X/Batch A (2026-27)/Physics/Mag/Mag lec-07._Extracted.docx",
+         "text": "t"},
+    ]
+    with (data / "corpus.jsonl").open("w", encoding="utf-8") as f:
+        for r in rows:
+            f.write(_json.dumps(r) + "\n")
+    uids = [a.uid for a in LecturepdfAdapter().artifacts()]
+    assert uids == ["lecturepdf:batch-a-2026-27/magnetism-7"]
+
+
+def test_lecturepdf_live_corpus_uids_unique():
+    """Against the REAL brain (skipped if absent): every artifact uid is unique,
+    so catalog's `insert or replace` on the uid PK cannot silently drop rows."""
+    ad = LecturepdfAdapter()
+    if not ad.available():
+        _pytest.skip("real lecturepdf brain not present")
+    uids = [a.uid for a in ad.artifacts()]
+    assert len(uids) == len(set(uids))
+
+
+def test_lecturepdf_reads_no_lancedb_no_key():
+    import inspect
+
+    from samagra.adapters import lecturepdf as mod
+    src = inspect.getsource(mod)
+    assert "lancedb" not in src.lower()
+    assert "OPENAI" not in src and "API_KEY" not in src
+
+
+def test_lecturepdf_registered():
+    assert "lecturepdf" in {a.name for a in ALL_ADAPTERS}
+    assert isinstance(get_adapter("lecturepdf"), LecturepdfAdapter)
+
+
+def test_all_three_corpora_registered():
+    names = {a.name for a in ALL_ADAPTERS}
+    assert {"gnocr", "onedpull", "lecturepdf"} <= names
+    assert isinstance(get_adapter("gnocr"), GnocrAdapter)
+    assert isinstance(get_adapter("onedpull"), OnedpullAdapter)
+    assert isinstance(get_adapter("lecturepdf"), LecturepdfAdapter)

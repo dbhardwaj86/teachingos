@@ -38,6 +38,16 @@ export const ICONS: Record<AppId, string> = {
     "M3 6a2 2 0 1 0 4 0 2 2 0 0 0-4 0|M17 6a2 2 0 1 0 4 0 2 2 0 0 0-4 0|M3 18a2 2 0 1 0 4 0 2 2 0 0 0-4 0|M17 18a2 2 0 1 0 4 0 2 2 0 0 0-4 0|M7 6h10|M5 8l-1 8|M19 8l1 8|M7 18h10|M7.5 8l4.5 4 4.5-4",
   publish:
     "M12 3v11|M8 7l4-4 4 4|M5 15v4a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-4",
+  // Stage B (T3.1) corpus apps — new 24×24 line glyphs (not from the prototype):
+  // gnocr: open book with a pen nib (handwritten OCR corpus)
+  gnocr:
+    "M2 4h7a3 3 0 0 1 3 3v13a2 2 0 0 0-2-2H2z|M22 4h-7a3 3 0 0 0-3 3v13a2 2 0 0 1 2-2h8z|M6 9h3|M6 12.5h3",
+  // onedpull: card-catalog drawers (question corpus brain)
+  onedpull:
+    "M3 4h18v6H3z|M3 14h18v6H3z|M10 7h4|M10 17h4",
+  // lecturepdf: projector screen with a play glyph (lecture corpus)
+  lecturepdf:
+    "M3 3h18|M5 3v11h14V3|M12 14v3|M8 21l4-4 4 4|M10.5 6.5v4l3.5-2z",
 };
 
 /** Stroke width for the 24×24 line icons — verbatim from the prototype (`sw||1.9`). */
