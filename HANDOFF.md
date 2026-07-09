@@ -2,8 +2,8 @@
 
 > **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ SLICE "DESKTOP ICONS + 3 READ-ONLY CORPUS APPS" BUILT 2026-07-09 — review gate
 > CLOSED (Codex 35 NO-GO → remediated → addendum GO-WITH-CAVEATS · fable-medium whole-slice 2 MED fixed TDD),
-> DEC-18 PROPOSED (pending Chairman ratification), committed `f7038dc` on branch
-> `feature/desktop-icons-corpus-apps` (⚠ merge to `main` pending).** Four tasks (T4 pipeline multi-stream = an
+> DEC-18 RATIFIED 2026-07-09 (Chairman), committed `f7038dc` on branch
+> `feature/desktop-icons-corpus-apps` (⚠ merged `--ff-only` to local `main`; owner push pending).** Four tasks (T4 pipeline multi-stream = an
 > exploration ANNEX in the plan only, ZERO implementation): desktop icons on the SAMAGRA OS desktop + THREE new
 > read-only source subsystems behind an origin-GATED reverse proxy + three windowed apps embedding them.
 > - **T1 — desktop icons** with full app names on the SAMAGRA OS desktop: pure `frontend/src/lib/desktop` layout
@@ -32,7 +32,7 @@
 > write path; publish gate untouched; student surface (`/learn`, `/api/published*`, `/api/learn/*`)
 > byte-identical (golden test); `governance.db` no migration/table/state-machine change; inward `build()` + 5
 > crash-safety guards untouched.
-> - **Proposed DEC-18** (pending Chairman ratification) — the read-only corpus subsystem + proxy invariant set:
+> - **DEC-18 (RATIFIED 2026-07-09)** — the read-only corpus subsystem + proxy invariant set:
 > (1) the 3 corpora are READ-ONLY source subsystems (`mode=ro`/filesystem; SAMAGRA never writes into any corpus
 > root); (2) the `/api/corpus/*` surface is entirely GET + ORIGIN-GATED, no public-prefix, no new POST; (3) the
 > reverse proxy carries positive-allowlist + normalize-before-match + no-redirect + wall-clock-deadline +
@@ -45,8 +45,8 @@
 > **+ 668 vitest** (80 files; up from 639) + `tsc --noEmit` clean + `npm run build` green.
 > - **Also this session (separate commit `dd233c3`):** the mcd root repointed to
 > `C:\SandBox\claude_khanak_box\mycontentdev` via env-overridable `config.MCD_ROOT`.
-> - **▶ IMMEDIATE NEXT:** Chairman ratifies DEC-18 → merge `feature/desktop-icons-corpus-apps` to `main`. The
-> F1/F2 owner steps below (push, `nlm` re-auth + live slides smoke, the `/learn` public deploy, the first live
+> - **▶ IMMEDIATE NEXT:** DEC-18 RATIFIED + slice merged `--ff-only` to local `main` 2026-07-09. The F1/F2 owner
+> steps below (push `origin main`, `nlm` re-auth + live slides smoke, the `/learn` public deploy, the first live
 > throughput run) still stand.
 >
 > ---
@@ -1114,8 +1114,8 @@ and live suites are **backend 106 pytest + frontend 501 vitest** green. **The dr
     already require. (5) **The student surface is untouched** — `/learn`, `/api/learn/*`, and `/api/published*`
     carry zero diffs from this slice. (6) **No migration, no governance schema change** —
     `governance.db`'s tables, columns, and assignment-state-machine are identical before and after G5.
-12. **DEC-18 · Read-only corpus subsystem + proxy invariants — PROPOSED 2026-07-09 (pending Chairman
-    ratification; slice "Desktop icons + 3 read-only corpus apps", branch `feature/desktop-icons-corpus-apps`,
+12. **DEC-18 · Read-only corpus subsystem + proxy invariants — RATIFIED 2026-07-09 (Chairman; slice
+    "Desktop icons + 3 read-only corpus apps", branch `feature/desktop-icons-corpus-apps`,
     commit `f7038dc`).** (1) The 3 new corpora (GN-OCR, onedpulls, lecturepdfs) are READ-ONLY source subsystems
     (sqlite `mode=ro` / filesystem only; SAMAGRA never writes into any corpus root). (2) The `/api/corpus/*`
     surface is entirely GET + ORIGIN-GATED — no public-prefix, no new POST. (3) The reverse proxy carries

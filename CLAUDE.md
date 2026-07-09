@@ -656,8 +656,8 @@
 > slug → `EXPORT_DIR` pattern in every lane + `render.load_chapter`) is tracked as a SEPARATE slice (Codex 34 MED's
 > broader class; F2 hardened its own boundary).
 >
-> **✅ SLICE "DESKTOP ICONS + 3 READ-ONLY CORPUS APPS" BUILT 2026-07-09 — review gate CLOSED, DEC-18 PROPOSED
-> (pending Chairman ratification), committed `f7038dc` on branch `feature/desktop-icons-corpus-apps` (⚠ merge to
+> **✅ SLICE "DESKTOP ICONS + 3 READ-ONLY CORPUS APPS" SHIPPED 2026-07-09 — review gate CLOSED, DEC-18 RATIFIED
+> (Chairman), committed `f7038dc` + merged `--ff-only` to local `main` (⚠ owner push pending — merge to
 > `main` pending).** 4 tasks (T4 pipeline multi-stream = an exploration ANNEX in the plan only, ZERO implementation).
 > **T1** desktop icons with full app names on the SAMAGRA OS desktop (pure `frontend/src/lib/desktop` layout math,
 > column-flow wrap clamped to the work-area; `pointerEvents:none` wrapper so a bare-desktop right-click still opens
@@ -681,7 +681,7 @@
 > `docs/codex-reviews/35-corpus-apps-premerge.report.md`. **Invariants HELD:** read-only firewall over the 3 new
 > corpora + the 7 existing subsystems · NO new prod write path · publish gate untouched · student surface (`/learn`,
 > `/api/published*`, `/api/learn/*`) byte-identical (golden test) · `governance.db` no migration/table/state-machine
-> change · inward `build()` + 5 crash-safety guards untouched. **Proposed DEC-18** (pending ratification — text in
+> change · inward `build()` + 5 crash-safety guards untouched. **DEC-18 (RATIFIED 2026-07-09)** (text in
 > HANDOFF.md's decisions block) = the read-only corpus subsystem + proxy invariant set: corpora READ-ONLY (SAMAGRA
 > never writes into any corpus root) · `/api/corpus/*` entirely GET + origin-gated, no public-prefix, no new POST ·
 > the proxy hardening set above · onedpull answer families excluded + body-scanned, nothing from the proxies feeds
@@ -692,7 +692,7 @@
 > `dd233c3`): the mcd root repointed to `C:\SandBox\claude_khanak_box\mycontentdev` via env-overridable
 > `config.MCD_ROOT`.
 >
-> **NEXT: Chairman ratifies DEC-18 → merge `feature/desktop-icons-corpus-apps` to `main`.** Phase F remains COMPLETE
+> **NEXT: DEC-18 RATIFIED + slice merged `--ff-only` to local `main` 2026-07-09.** Phase F remains COMPLETE
 > (F1 figures · F2 slides; NO audio — DEC-9 absolute). Remaining owner steps: `git push origin main`; re-auth + live
 > slides smoke; the `/learn` public deploy; the first live throughput run. **DEC-8 invariants unchanged.**
 >
