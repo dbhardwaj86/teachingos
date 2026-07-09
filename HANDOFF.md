@@ -1,5 +1,56 @@
 # SAMAGRA — Handoff
 
+> **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ SLICE "DESKTOP ICONS + 3 READ-ONLY CORPUS APPS" BUILT 2026-07-09 — review gate
+> CLOSED (Codex 35 NO-GO → remediated → addendum GO-WITH-CAVEATS · fable-medium whole-slice 2 MED fixed TDD),
+> DEC-18 PROPOSED (pending Chairman ratification), committed `f7038dc` on branch
+> `feature/desktop-icons-corpus-apps` (⚠ merge to `main` pending).** Four tasks (T4 pipeline multi-stream = an
+> exploration ANNEX in the plan only, ZERO implementation): desktop icons on the SAMAGRA OS desktop + THREE new
+> read-only source subsystems behind an origin-GATED reverse proxy + three windowed apps embedding them.
+> - **T1 — desktop icons** with full app names on the SAMAGRA OS desktop: pure `frontend/src/lib/desktop` layout
+> math (column-flow wrap clamped to the work-area); a `pointerEvents:none` wrapper so a bare-desktop right-click
+> still opens the desktop menu; tile-click dismisses menus; the 3 themes + mobile untouched.
+> - **T2 — three read-only source subsystems** (GN-OCR `C:\SandBox\claude_box\claude-GN-OCR` · onedpulls
+> `C:\SandBox\gemini_box\onedpulls` · lecturepdfs `C:\SandBox\claude_box\lecturepdfs`): env-overridable `*_ROOT`
+> config vars, adapters (sqlite `mode=ro` / filesystem only) registered in `ALL_ADAPTERS`, and the origin-GATED
+> reverse-proxy surface `GET /api/corpus/{name}` (listing) + `GET /api/corpus/{name}/serve/{path}` —
+> `is_protected` gained a GET `startswith "/api/corpus/"` prefix branch. **Proxy hardening:** exact positive
+> per-corpus allowlists · normalize-before-match · no-redirect transport + final-URL host revalidation · hard
+> wall-clock read deadline + 25MB cap · userinfo-rejecting base URLs · onedpull answer-family exclusion +
+> defense-in-depth body scan · `<base href>` + JS fetch-literal rewrite · graceful daemon-down 503.
+> - **T3 — three windowed apps** (`frontend/src/apps/{GnBrain,CorpusBrain,LectureBrain}`; AppIds
+> `gnocr`/`onedpull`/`lecturepdf`) = same-origin iframes of the gated serve proxy, **NO sandbox attr** (trusted
+> gated owner apps; the Pratham published-artifact CSP untouched + distinct), offline+retry panels; the
+> `AppId`/`APPS`/`ORDER`/`ICONS` registry grows **19→22 apps**.
+> - **Review gate:** opus-xhigh per-task + fable-medium whole-slice final review (**2 MED fixed TDD** —
+> lecturepdf date-key data-loss ~69 lectures + lecturepdf Vue JS fetch-literal rewrite). **Dedicated Codex
+> pre-merge review 35** (the proxy/serve/gate boundary,
+> `docs/codex-reviews/35-corpus-apps-premerge.report.md`) = **NO-GO** (MED SSRF-via-redirect · MED slow-drip DoS
+> · LOW cred-leak in an error hint) → all 3 remediated TDD → **addendum GO-WITH-CAVEATS** (lone accepted caveat:
+> F2 read deadline is bounded-not-exact — one in-flight `read1` may run to the socket timeout; accepted under
+> the single-operator origin-gated-owner threat model) = effectively **GO**.
+> - **Invariants HELD:** read-only firewall over the 3 new corpora + the 7 existing subsystems; NO new prod
+> write path; publish gate untouched; student surface (`/learn`, `/api/published*`, `/api/learn/*`)
+> byte-identical (golden test); `governance.db` no migration/table/state-machine change; inward `build()` + 5
+> crash-safety guards untouched.
+> - **Proposed DEC-18** (pending Chairman ratification) — the read-only corpus subsystem + proxy invariant set:
+> (1) the 3 corpora are READ-ONLY source subsystems (`mode=ro`/filesystem; SAMAGRA never writes into any corpus
+> root); (2) the `/api/corpus/*` surface is entirely GET + ORIGIN-GATED, no public-prefix, no new POST; (3) the
+> reverse proxy carries positive-allowlist + normalize-before-match + no-redirect + wall-clock-deadline +
+> size-cap + userinfo-reject + graceful-daemon-down hardening; (4) onedpull answer families excluded +
+> body-scanned, nothing from the proxies feeds `published/` or `/learn`; (5) embedded UIs are same-origin
+> no-sandbox iframes (trusted gated owner apps), the Pratham sandbox precedent untouched + distinct; (6) student
+> surface + publish gate + inward `build()`+5 guards + 7 existing subsystems + `governance.db` all untouched.
+> (Text mirrored into the decisions block below as item 12.)
+> - **Gate: 919 pytest** (915 passed, 4 opt-in live-smoke skips, 0 failures; up from the F2 baseline of 848)
+> **+ 668 vitest** (80 files; up from 639) + `tsc --noEmit` clean + `npm run build` green.
+> - **Also this session (separate commit `dd233c3`):** the mcd root repointed to
+> `C:\SandBox\claude_khanak_box\mycontentdev` via env-overridable `config.MCD_ROOT`.
+> - **▶ IMMEDIATE NEXT:** Chairman ratifies DEC-18 → merge `feature/desktop-icons-corpus-apps` to `main`. The
+> F1/F2 owner steps below (push, `nlm` re-auth + live slides smoke, the `/learn` public deploy, the first live
+> throughput run) still stand.
+>
+> ---
+>
 > **▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶▶ ✅ PHASE F2 (the `slides` lane — NotebookLM-generated slide decks) SHIPPED 2026-07-07 —
 > review gate CLOSED, DEC-17 RATIFIED, merged `--ff-only` to local `main` (⚠ OWNER PUSH PENDING — agent `git
 > push` is classifier-blocked; F1+F2 now ~33 commits ahead of `origin/main`). ⇒ PHASE F COMPLETE.** Branch
@@ -1063,6 +1114,16 @@ and live suites are **backend 106 pytest + frontend 501 vitest** green. **The dr
     already require. (5) **The student surface is untouched** — `/learn`, `/api/learn/*`, and `/api/published*`
     carry zero diffs from this slice. (6) **No migration, no governance schema change** —
     `governance.db`'s tables, columns, and assignment-state-machine are identical before and after G5.
+12. **DEC-18 · Read-only corpus subsystem + proxy invariants — PROPOSED 2026-07-09 (pending Chairman
+    ratification; slice "Desktop icons + 3 read-only corpus apps", branch `feature/desktop-icons-corpus-apps`,
+    commit `f7038dc`).** (1) The 3 new corpora (GN-OCR, onedpulls, lecturepdfs) are READ-ONLY source subsystems
+    (sqlite `mode=ro` / filesystem only; SAMAGRA never writes into any corpus root). (2) The `/api/corpus/*`
+    surface is entirely GET + ORIGIN-GATED — no public-prefix, no new POST. (3) The reverse proxy carries
+    positive-allowlist + normalize-before-match + no-redirect + wall-clock-deadline + size-cap + userinfo-reject
+    + graceful-daemon-down hardening. (4) onedpull answer families are excluded + body-scanned; nothing from the
+    proxies feeds `published/` or `/learn`. (5) Embedded UIs are same-origin no-sandbox iframes (trusted gated
+    owner apps); the Pratham sandbox precedent is untouched + distinct. (6) The student surface + publish gate +
+    inward `build()` + 5 guards + the 7 existing subsystems + `governance.db` are all untouched.
 
 This decision is recorded across STATUS.html (*Direction coherence*), SUMMARY.html, both specs and CLAUDE.md, so
 it travels with the project. Reviews that informed it: `docs/superpowers/_research/samagra-os/_vision-review-output.md`.
